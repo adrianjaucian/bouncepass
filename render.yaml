@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: bouncepass-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:$PORT
+    envVars:
+      - key: ACCESS_PASSWORD
+        sync: false
+      - key: ALLOWED_ORIGINS
+        value: https://bouncepass.net,https://www.bouncepass.net
+      - key: PYTHON_VERSION
+        value: "3.11"
