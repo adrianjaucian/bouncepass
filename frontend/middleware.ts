@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AUTH_COOKIE_NAME, isAuthenticated, isPasswordProtectionEnabled } from "./lib/auth";
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   if (!isPasswordProtectionEnabled()) {
     return NextResponse.next();
   }
@@ -18,7 +18,7 @@ export function middleware(request: NextRequest) {
   }
 
   const cookieValue = request.cookies.get(AUTH_COOKIE_NAME)?.value;
-  if (isAuthenticated(cookieValue)) {
+  if (await isAuthenticated(cookieValue)) {
     return NextResponse.next();
   }
 

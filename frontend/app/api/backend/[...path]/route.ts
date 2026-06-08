@@ -9,7 +9,7 @@ import {
 async function proxyRequest(request: NextRequest, pathParts: string[]) {
   if (isPasswordProtectionEnabled()) {
     const cookieValue = request.cookies.get(AUTH_COOKIE_NAME)?.value;
-    if (!isAuthenticated(cookieValue)) {
+    if (!(await isAuthenticated(cookieValue))) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
   }
@@ -60,6 +60,22 @@ export async function GET(
 }
 
 export async function POST(
+  request: NextRequest,
+  context: { params: Promise<{ path: string[] }> }
+) {
+  const { path } = await context.params;
+  return proxyRequest(request, path);
+}
+
+export async function PUT(
+  request: NextRequest,
+  context: { params: Promise<{ path: string[] }> }
+) {
+  const { path } = await context.params;
+  return proxyRequest(request, path);
+}
+
+export async function DELETE(
   request: NextRequest,
   context: { params: Promise<{ path: string[] }> }
 ) {

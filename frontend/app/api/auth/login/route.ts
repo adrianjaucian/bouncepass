@@ -19,12 +19,12 @@ export async function POST(request: NextRequest) {
   }
 
   const password = body.password || "";
-  if (!verifyPassword(password)) {
+  if (!(await verifyPassword(password))) {
     return NextResponse.json({ error: "Incorrect password" }, { status: 401 });
   }
 
   const response = NextResponse.json({ ok: true });
-  response.cookies.set(AUTH_COOKIE_NAME, getAuthCookieValue(), {
+  response.cookies.set(AUTH_COOKIE_NAME, await getAuthCookieValue(), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",

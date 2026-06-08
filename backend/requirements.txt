@@ -5,3 +5,6 @@ pandas
 numpy
 python-dotenv
 gunicorn
+sqlalchemy
+pydantic
+lxml

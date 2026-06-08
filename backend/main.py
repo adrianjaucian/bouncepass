@@ -1,18 +1,46 @@
 import io
+import json
 import os
 from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, Request, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
 
+from boxscore_normalize import (
+    clean_dataframe,
+    detect_header_row,
+    get_player_name,
+    is_totals_row_name,
+    normalize_column_name,
+    validate_required_columns,
+)
+from boxscore_url_scraper import UrlScrapeError, scrape_game_from_url
+from database import get_db, init_db
+from models import SavedGame
+from schemas import (
+    BoxScoreUrlMeta,
+    BoxScoreUrlRequest,
+    BoxScoreUrlResponse,
+    GameDetail,
+    GameListResponse,
+    GameSaveRequest,
+    GameSummary,
+    GameUpdateRequest,
+)
 from stats_engine import generate_advanced_stats
 
 load_dotenv()
 
 app = FastAPI()
+
+
+@app.on_event("startup")
+def on_startup():
+    init_db()
 
 ACCESS_PASSWORD = os.getenv("ACCESS_PASSWORD", "")
 
@@ -47,121 +75,6 @@ async def access_password_middleware(request: Request, call_next):
     return await call_next(request)
 
 
-def detect_header_row(lines: List[str]) -> Optional[int]:
-    for i, line in enumerate(lines):
-        clean = line.replace(" ", "").replace("\ufeff", "").lower()
-        has_time = "mp" in clean or "min" in clean
-        has_fga = "fga" in clean
-        has_fg = "fg" in clean or "fgm" in clean
-        has_pts = "pts" in clean or "points" in clean
-        has_reb = "reb" in clean or "or" in clean or "dr" in clean or "trb" in clean
-        if has_time and has_fga and has_fg and has_pts and has_reb:
-            return i
-    return None
-
-
-def normalize_column_name(col: Any) -> str:
-    name = str(col).strip().replace("\ufeff", "")
-    if name == "":
-        return name
-    key = name.lower().replace("%", "pct").replace(" ", "").replace("-", "")
-    if key in {"player", "players", "starters", "name"}:
-        return "Player"
-    if key in {"mp", "min", "minutes"}:
-        return "MP"
-    if key in {"fg", "fgm", "fieldgoalmade"}:
-        return "FG"
-    if key == "fga":
-        return "FGA"
-    if key in {"fgpct", "fg_pct", "fgpercent"}:
-        return "FG%"
-    if key in {"3p", "3pm", "3pointmade"}:
-        return "3P"
-    if key == "3pa":
-        return "3PA"
-    if key in {"3ppct", "3p_pct", "3ppercent"}:
-        return "3P%"
-    if key in {"ft", "ftm", "freetthrowmade"}:
-        return "FT"
-    if key == "fta":
-        return "FTA"
-    if key in {"ftpct", "ft_pct", "ftpercent"}:
-        return "FT%"
-    if key in {"orb", "or", "offensivereb", "offensiverebounds"}:
-        return "ORB"
-    if key in {"drb", "dr", "defensivereb", "defensiverebounds"}:
-        return "DRB"
-    if key in {"trb", "reb", "totalreb", "totalrebounds"}:
-        return "TRB"
-    if key == "ast":
-        return "AST"
-    if key == "stl":
-        return "STL"
-    if key == "blk":
-        return "BLK"
-    if key in {"tov", "to", "turnover", "turnovers"}:
-        return "TOV"
-    if key == "pf":
-        return "PF"
-    if key in {"teampts", "pts", "points"}:
-        return "PTS"
-    if key in {"gmsc", "gmscore"}:
-        return "GmSc"
-    if key == "plusminus":
-        return "+/-"
-    return name
-
-
-def is_totals_row_name(name: Any) -> bool:
-    if name is None or str(name).strip() == "":
-        return True
-    normalized = "".join(ch for ch in str(name).lower() if ch.isalnum())
-    if normalized in {
-        "total",
-        "totals",
-        "team",
-        "teamtotals",
-        "teamtotal",
-        "starters",
-        "bench",
-        "teamcoach",
-        "dnp",
-        "didnotplay",
-    }:
-        return True
-    if normalized.startswith("total"):
-        return True
-    if "teamtotal" in normalized:
-        return True
-    return False
-
-
-def clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
-    df.columns = [normalize_column_name(c) for c in df.columns]
-    df = df.dropna(axis=1, how="all")
-    if "MP" in df.columns:
-        df = df[~df["MP"].astype(str).str.contains("Did Not Play|DNP", na=False, case=False)]
-    if df.shape[0] > 0:
-        player_col = df["Player"] if "Player" in df.columns else df.iloc[:, 0]
-        df = df[~player_col.apply(is_totals_row_name)]
-    return df
-
-
-def get_player_name(row: Dict[str, Any], index: int) -> str:
-    raw_value = row.get("Player")
-    if raw_value is not None and str(raw_value).strip() != "":
-        return str(raw_value).strip()
-    for key, value in row.items():
-        if key in {
-            "MP", "PTS", "FGA", "FG", "FTA", "3P", "3PA", "FT", "ORB", "DRB", "TRB",
-            "AST", "STL", "BLK", "TOV", "PF", "GmSc", "FG%", "3P%", "FT%", "+/-",
-        }:
-            continue
-        if value is not None and str(value).strip() != "":
-            return str(value).strip()
-    return f"Player {index + 1}"
-
-
 async def parse_uploaded_csv(file: UploadFile) -> Tuple[Optional[pd.DataFrame], Optional[Dict[str, Any]]]:
     contents = await file.read()
     try:
@@ -184,6 +97,60 @@ async def parse_uploaded_csv(file: UploadFile) -> Tuple[Optional[pd.DataFrame], 
         return None, {"error": "Could not parse uploaded CSV", "details": str(e)}
     df = clean_dataframe(df)
     return df, None
+
+
+def team_pts_from_rows(rows: List[Dict[str, Any]]) -> Optional[int]:
+    if not rows:
+        return None
+    df = pd.DataFrame(rows)
+    if df.empty:
+        return None
+    if "Player" in df.columns:
+        df = df[~df["Player"].apply(is_totals_row_name)]
+    else:
+        df = clean_dataframe(df)
+    if df.empty or "PTS" not in df.columns:
+        return None
+    return int(pd.to_numeric(df["PTS"], errors="coerce").fillna(0).sum())
+
+
+def scores_from_results(results: Dict[str, Any]) -> Tuple[Optional[int], Optional[int]]:
+    if not isinstance(results, dict):
+        return None, None
+    home_rows = results.get("home")
+    away_rows = results.get("away")
+    home_score = team_pts_from_rows(home_rows) if home_rows else None
+    away_score = team_pts_from_rows(away_rows) if away_rows else None
+    return home_score, away_score
+
+
+def game_to_summary(game: SavedGame) -> GameSummary:
+    results = json.loads(game.results_json)
+    home_score, away_score = scores_from_results(results)
+    return GameSummary(
+        id=game.id,
+        game_date=game.game_date,
+        home_team_name=game.home_team_name,
+        away_team_name=game.away_team_name,
+        home_score=home_score,
+        away_score=away_score,
+        created_at=game.created_at.isoformat(),
+    )
+
+
+def game_to_detail(game: SavedGame) -> GameDetail:
+    results = json.loads(game.results_json)
+    home_score, away_score = scores_from_results(results)
+    return GameDetail(
+        id=game.id,
+        game_date=game.game_date,
+        home_team_name=game.home_team_name,
+        away_team_name=game.away_team_name,
+        home_score=home_score,
+        away_score=away_score,
+        created_at=game.created_at.isoformat(),
+        results=results,
+    )
 
 
 def build_team_stats(df: pd.DataFrame) -> Dict[str, int]:
@@ -214,12 +181,6 @@ def calculate_stats(df: pd.DataFrame, opponent_stats: Optional[Dict[str, int]] =
     for index, row in enumerate(rows):
         row["Player"] = get_player_name(row, index)
     return clean_rows(rows)
-
-
-def validate_required_columns(df: pd.DataFrame) -> Optional[List[str]]:
-    required = ["PTS", "FG", "FGA", "FTA"]
-    missing = [c for c in required if c not in df.columns]
-    return missing if missing else None
 
 
 @app.post("/upload-boxscore")
@@ -281,3 +242,102 @@ async def upload_boxscores(
         return JSONResponse(status_code=500, content={"error": "Could not calculate stats", "details": str(exc)})
 
     return {"home": home_rows, "away": away_rows}
+
+
+@app.post("/upload-boxscore-url", response_model=BoxScoreUrlResponse)
+def upload_boxscore_url(body: BoxScoreUrlRequest) -> Any:
+    try:
+        home_df, away_df, meta = scrape_game_from_url(body.url)
+    except UrlScrapeError as exc:
+        return JSONResponse(status_code=400, content={"error": str(exc)})
+
+    missing_home = validate_required_columns(home_df)
+    missing_away = validate_required_columns(away_df)
+    if missing_home or missing_away:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": "Scraped box score is missing required columns",
+                "missing_home": missing_home,
+                "missing_away": missing_away,
+            },
+        )
+
+    try:
+        home_team_stats = build_team_stats(home_df)
+        away_team_stats = build_team_stats(away_df)
+        home_rows = calculate_stats(home_df, opponent_stats=away_team_stats)
+        away_rows = calculate_stats(away_df, opponent_stats=home_team_stats)
+    except Exception as exc:
+        return JSONResponse(status_code=500, content={"error": "Could not calculate stats", "details": str(exc)})
+
+    return BoxScoreUrlResponse(
+        home=home_rows,
+        away=away_rows,
+        meta=BoxScoreUrlMeta(
+            home_team_name=meta.get("home_team_name") or "Home",
+            away_team_name=meta.get("away_team_name") or "Away",
+            game_date=meta.get("game_date") or "",
+            fixture_id=meta.get("fixture_id") or "",
+            source_url=meta.get("source_url") or body.url.strip(),
+            provider=meta.get("provider"),
+        ),
+    )
+
+
+@app.post("/upload-nbl1-url", response_model=BoxScoreUrlResponse, include_in_schema=False)
+def upload_nbl1_url_legacy(body: BoxScoreUrlRequest) -> Any:
+    return upload_boxscore_url(body)
+
+
+@app.post("/games", response_model=GameDetail)
+def save_game(game_in: GameSaveRequest, db: Session = Depends(get_db)) -> GameDetail:
+    record = SavedGame(
+        game_date=game_in.game_date.strip(),
+        home_team_name=game_in.home_team_name.strip(),
+        away_team_name=game_in.away_team_name.strip() if game_in.away_team_name else None,
+        results_json=json.dumps(game_in.results),
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    return game_to_detail(record)
+
+
+@app.get("/games", response_model=GameListResponse)
+def list_games(db: Session = Depends(get_db)) -> GameListResponse:
+    games = db.query(SavedGame).order_by(SavedGame.game_date.desc(), SavedGame.created_at.desc()).all()
+    return GameListResponse(games=[game_to_summary(game) for game in games])
+
+
+@app.get("/games/{game_id}", response_model=GameDetail)
+def get_game(game_id: int, db: Session = Depends(get_db)) -> GameDetail:
+    game = db.query(SavedGame).filter(SavedGame.id == game_id).first()
+    if not game:
+        raise HTTPException(status_code=404, detail="Game not found")
+    return game_to_detail(game)
+
+
+@app.put("/games/{game_id}", response_model=GameDetail)
+def update_game(game_id: int, game_in: GameUpdateRequest, db: Session = Depends(get_db)) -> GameDetail:
+    game = db.query(SavedGame).filter(SavedGame.id == game_id).first()
+    if not game:
+        raise HTTPException(status_code=404, detail="Game not found")
+
+    game.game_date = game_in.game_date.strip()
+    game.home_team_name = game_in.home_team_name.strip()
+    game.away_team_name = game_in.away_team_name.strip() if game_in.away_team_name else None
+    db.commit()
+    db.refresh(game)
+
+    return game_to_detail(game)
+
+
+@app.delete("/games/{game_id}")
+def delete_game(game_id: int, db: Session = Depends(get_db)) -> Dict[str, bool]:
+    game = db.query(SavedGame).filter(SavedGame.id == game_id).first()
+    if not game:
+        raise HTTPException(status_code=404, detail="Game not found")
+    db.delete(game)
+    db.commit()
+    return {"ok": True}
