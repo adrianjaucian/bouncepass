@@ -20,7 +20,9 @@ def clean_output(df):
 # =========================
 # POSSESSIONS CALCULATION
 # =========================
-TEAM_MINUTES = 48.0
+# FIBA regulation game length (4 × 10-minute quarters)
+GAME_MINUTES = 40.0
+TEAM_MINUTES = GAME_MINUTES
 
 def estimate_possessions(tm_fga, tm_fta, tm_tov):
     """

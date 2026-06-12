@@ -31,6 +31,34 @@ export default function SiteNav() {
       >
         Saved Games
       </Link>
+      <Link
+        href="/team-dashboard"
+        style={{
+          padding: '10px 18px',
+          backgroundColor: '#9b59b6',
+          color: 'white',
+          borderRadius: '6px',
+          textDecoration: 'none',
+          fontWeight: 'bold',
+          fontSize: '14px',
+        }}
+      >
+        Team Dashboard
+      </Link>
+      <Link
+        href="/metric-definitions"
+        style={{
+          padding: '10px 18px',
+          backgroundColor: '#16a085',
+          color: 'white',
+          borderRadius: '6px',
+          textDecoration: 'none',
+          fontWeight: 'bold',
+          fontSize: '14px',
+        }}
+      >
+        Metric Definitions
+      </Link>
     </nav>
   );
 }

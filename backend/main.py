@@ -30,8 +30,11 @@ from schemas import (
     GameSaveRequest,
     GameSummary,
     GameUpdateRequest,
+    TeamDashboardResponse,
+    TeamListResponse,
 )
 from stats_engine import generate_advanced_stats
+from team_dashboard import build_team_dashboard, collect_team_names
 
 load_dotenv()
 
@@ -308,6 +311,25 @@ def save_game(game_in: GameSaveRequest, db: Session = Depends(get_db)) -> GameDe
 def list_games(db: Session = Depends(get_db)) -> GameListResponse:
     games = db.query(SavedGame).order_by(SavedGame.game_date.desc(), SavedGame.created_at.desc()).all()
     return GameListResponse(games=[game_to_summary(game) for game in games])
+
+
+@app.get("/teams", response_model=TeamListResponse)
+def list_teams(db: Session = Depends(get_db)) -> TeamListResponse:
+    games = db.query(SavedGame).all()
+    return TeamListResponse(teams=collect_team_names(games))
+
+
+@app.get("/teams/dashboard", response_model=TeamDashboardResponse)
+def team_dashboard(team_name: str, db: Session = Depends(get_db)) -> TeamDashboardResponse:
+    query = team_name.strip()
+    if not query:
+        raise HTTPException(status_code=400, detail="team_name is required")
+
+    games = db.query(SavedGame).order_by(SavedGame.game_date.desc(), SavedGame.created_at.desc()).all()
+    dashboard = build_team_dashboard(games, query)
+    if dashboard["games_played"] == 0:
+        raise HTTPException(status_code=404, detail=f"No saved games found for team '{query}'")
+    return TeamDashboardResponse(**dashboard)
 
 
 @app.get("/games/{game_id}", response_model=GameDetail)
