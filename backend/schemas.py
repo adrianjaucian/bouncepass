@@ -68,6 +68,15 @@ class TeamDashboardPlayer(BaseModel):
     drtg: Optional[float] = None
     usg_pct: Optional[float] = None
     usg_avg: Optional[float] = None
+    fga: int = 0
+    fg3a: int = 0
+    efg_pct: Optional[float] = None
+    efg_avg: Optional[float] = None
+    fg3_pct: Optional[float] = None
+    fg3par: Optional[float] = None
+    fg3_avg: Optional[float] = None
+    bpm: Optional[float] = None
+    bpm_avg: Optional[float] = None
 
 
 class TeamDashboardGame(BaseModel):
@@ -77,6 +86,31 @@ class TeamDashboardGame(BaseModel):
     team_score: Optional[int] = None
     opponent_score: Optional[int] = None
     side: str
+
+
+class TrendPoint(BaseModel):
+    game_date: str
+    label: str
+    opponent: Optional[str] = None
+    team_name: Optional[str] = None
+    pts: Optional[float] = None
+    trb: Optional[float] = None
+    ast: Optional[float] = None
+    ts_pct: Optional[float] = None
+    usg_pct: Optional[float] = None
+    net_rating: Optional[float] = None
+    ortg: Optional[float] = None
+    drtg: Optional[float] = None
+    bpm: Optional[float] = None
+    fg3par: Optional[float] = None
+    trb_pct: Optional[float] = None
+    blk_pct: Optional[float] = None
+
+
+class TrendCharts(BaseModel):
+    last_5: List[TrendPoint] = []
+    last_10: List[TrendPoint] = []
+    season: List[TrendPoint] = []
 
 
 class TeamDashboardLeaders(BaseModel):
@@ -99,6 +133,108 @@ class TeamDashboardResponse(BaseModel):
     leaders: TeamDashboardLeaders
     players: List[TeamDashboardPlayer]
     games: List[TeamDashboardGame]
+    trend_charts: TrendCharts = TrendCharts()
+
+
+class StatRank(BaseModel):
+    rank: int
+    of: int
+
+
+class PlayerDashboardStats(BaseModel):
+    player: str
+    teams: List[str] = []
+    games: int
+    mp_mins: float
+    pts: int
+    trb: int
+    ast: int
+    stl: int
+    blk: int
+    tov: int
+    orb: int
+    drb: int
+    fg: int
+    fga: int
+    fg3: int
+    fg3a: int
+    ft: int
+    fta: int
+    pts_pg: Optional[float] = None
+    trb_pg: Optional[float] = None
+    ast_pg: Optional[float] = None
+    stl_pg: Optional[float] = None
+    blk_pg: Optional[float] = None
+    tov_pg: Optional[float] = None
+    ts_pct: Optional[float] = None
+    efg_pct: Optional[float] = None
+    fg3_pct: Optional[float] = None
+    fg3par: Optional[float] = None
+    ft_pct: Optional[float] = None
+    ortg: Optional[float] = None
+    drtg: Optional[float] = None
+    usg_pct: Optional[float] = None
+    usg_avg: Optional[float] = None
+    bpm: Optional[float] = None
+    bpm_avg: Optional[float] = None
+    efg_avg: Optional[float] = None
+    fg3_avg: Optional[float] = None
+    ast_pct: Optional[float] = None
+    trb_pct: Optional[float] = None
+    stl_pct: Optional[float] = None
+    blk_pct: Optional[float] = None
+    tov_pct: Optional[float] = None
+    orb_pct: Optional[float] = None
+    drb_pct: Optional[float] = None
+    ranks: Dict[str, StatRank] = {}
+
+
+class PlayerDashboardGame(BaseModel):
+    game_id: int
+    game_date: str
+    team_name: str
+    opponent: Optional[str] = None
+    mp_mins: float
+    pts: int
+    trb: int
+    ast: int
+    stl: int
+    blk: int
+    fg: int
+    fga: int
+    fg3: int
+    fg3a: int
+    ft: int
+    fta: int
+    tov: int
+    ts_pct: Optional[float] = None
+    efg_pct: Optional[float] = None
+    usg_pct: Optional[float] = None
+    ortg: Optional[float] = None
+    drtg: Optional[float] = None
+    bpm: Optional[float] = None
+
+
+class PlayerDashboardResponse(BaseModel):
+    player_name: str
+    query: str
+    games_played: int
+    teams: List[str]
+    stats: Optional[PlayerDashboardStats] = None
+    games: List[PlayerDashboardGame]
+    trend_charts: TrendCharts = TrendCharts()
+    league_players: int
+    league_games: int
+
+
+class PlayerListResponse(BaseModel):
+    players: List[str]
+
+
+class PlayerLeagueLeadersResponse(BaseModel):
+    league_players: int
+    league_games: int
+    players: List[PlayerDashboardStats]
 
 
 class BoxScoreUrlRequest(BaseModel):

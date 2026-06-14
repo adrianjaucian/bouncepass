@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import SiteNav from "../../components/SiteNav";
+import SeasonLeadersSection from "../../components/SeasonLeadersSection";
+import TrendCharts, { TEAM_FEATURED_TREND_STAT, TEAM_TREND_STATS } from "../../components/TrendCharts";
 import api from "../../lib/api";
 import { getMetricAnchor } from "../../lib/metricDefinitions";
 
@@ -19,6 +21,15 @@ type DashboardPlayer = {
   drtg?: number | null;
   usg_pct?: number | null;
   usg_avg?: number | null;
+  fga?: number;
+  fg3a?: number;
+  efg_pct?: number | null;
+  efg_avg?: number | null;
+  fg3_pct?: number | null;
+  fg3par?: number | null;
+  fg3_avg?: number | null;
+  bpm?: number | null;
+  bpm_avg?: number | null;
 };
 
 type TeamDashboard = {
@@ -56,6 +67,24 @@ type TeamDashboard = {
     opponent_score?: number | null;
     side: string;
   }[];
+  trend_charts?: {
+    last_5: TrendPoint[];
+    last_10: TrendPoint[];
+    season: TrendPoint[];
+  };
+};
+
+type TrendPoint = {
+  game_date: string;
+  label: string;
+  pts?: number | null;
+  trb?: number | null;
+  ast?: number | null;
+  ts_pct?: number | null;
+  usg_pct?: number | null;
+  net_rating?: number | null;
+  ortg?: number | null;
+  drtg?: number | null;
 };
 
 const DEFAULT_TEAM = "Hornsby Ku-ring-gai Spiders";
@@ -66,95 +95,13 @@ const tableHeaderStyle: React.CSSProperties = {
   fontWeight: "bold",
 };
 
-function perGameAverage(total: number, games: number) {
-  if (!games) return "—";
-  return (total / games).toFixed(1);
-}
+const LOWER_IS_BETTER_TRENDS = new Set(["drtg", "possession-drtg"]);
 
-function LeaderTable({
-  title,
-  rows,
-  stat,
-  statLabel,
-  formatTotal,
-  formatAvg,
-}: {
-  title: string;
-  rows: DashboardPlayer[];
-  stat: "pts" | "trb" | "ast" | "stl" | "blk";
-  statLabel: string;
-  formatTotal?: (row: DashboardPlayer) => string;
-  formatAvg?: (row: DashboardPlayer) => string;
-}) {
-  return (
-    <div style={{ flex: "1 1 280px", minWidth: "260px" }}>
-      <h3 style={{ margin: "0 0 12px 0", color: "#2c3e50", fontSize: "1.1em" }}>{title}</h3>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px", border: "1px solid #e1e8ed" }}>
-        <thead>
-          <tr style={{ backgroundColor: "#f1f6f9" }}>
-            <th style={{ ...tableHeaderStyle, textAlign: "left" }}>Player</th>
-            <th style={{ ...tableHeaderStyle, textAlign: "center" }}>GP</th>
-            <th style={{ ...tableHeaderStyle, textAlign: "center" }}>{statLabel}</th>
-            <th style={{ ...tableHeaderStyle, textAlign: "center" }}>AVG</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, index) => (
-            <tr key={row.player} style={{ backgroundColor: index % 2 === 0 ? "#fff" : "#fafbfc" }}>
-              <td style={{ padding: "10px", color: "#000" }}>{row.player}</td>
-              <td style={{ padding: "10px", textAlign: "center", color: "#000" }}>{row.games}</td>
-              <td style={{ padding: "10px", textAlign: "center", fontWeight: "bold", color: "#000" }}>
-                {formatTotal ? formatTotal(row) : row[stat]}
-              </td>
-              <td style={{ padding: "10px", textAlign: "center", color: "#000" }}>
-                {formatAvg ? formatAvg(row) : perGameAverage(row[stat], row.games)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function UsageLeaderTable({ title, rows }: { title: string; rows: DashboardPlayer[] }) {
-  const formatUsg = (value?: number | null) => (value == null ? "—" : `${value.toFixed(1)}%`);
-
-  return (
-    <div style={{ flex: "1 1 280px", minWidth: "260px" }}>
-      <h3 style={{ margin: "0 0 12px 0", color: "#2c3e50", fontSize: "1.1em" }}>{title}</h3>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px", border: "1px solid #e1e8ed" }}>
-        <thead>
-          <tr style={{ backgroundColor: "#f1f6f9" }}>
-            <th style={{ ...tableHeaderStyle, textAlign: "left" }}>Player</th>
-            <th style={{ ...tableHeaderStyle, textAlign: "center" }}>GP</th>
-            <th style={{ ...tableHeaderStyle, textAlign: "center" }}>USG%</th>
-            <th style={{ ...tableHeaderStyle, textAlign: "center" }}>AVG</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, index) => (
-            <tr key={row.player} style={{ backgroundColor: index % 2 === 0 ? "#fff" : "#fafbfc" }}>
-              <td style={{ padding: "10px", color: "#000" }}>{row.player}</td>
-              <td style={{ padding: "10px", textAlign: "center", color: "#000" }}>{row.games}</td>
-              <td style={{ padding: "10px", textAlign: "center", fontWeight: "bold", color: "#000" }}>
-                {formatUsg(row.usg_pct)}
-              </td>
-              <td style={{ padding: "10px", textAlign: "center", color: "#000" }}>
-                {formatUsg(row.usg_avg)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function trendColor(trend?: string | null) {
+function trendColor(trend?: string | null, definitionId?: string) {
   if (!trend) return "#7f8c8d";
-  if (trend.startsWith("^")) return "#1e7e34";
-  if (trend.startsWith("v")) return "#c0392b";
+  const lowerIsBetter = definitionId ? LOWER_IS_BETTER_TRENDS.has(definitionId) : false;
+  if (trend.startsWith("↑")) return lowerIsBetter ? "#c0392b" : "#1e7e34";
+  if (trend.startsWith("↓")) return lowerIsBetter ? "#1e7e34" : "#c0392b";
   return "#7f8c8d";
 }
 
@@ -203,7 +150,7 @@ function MetricCard({
       >
         <div style={{ color: "#2c3e50", fontSize: "2em", fontWeight: "bold" }}>{value}</div>
         {trend && (
-          <div style={{ color: trendColor(trend), fontSize: "12px", fontWeight: 600, maxWidth: "140px" }}>
+          <div style={{ color: trendColor(trend, definitionId), fontSize: "12px", fontWeight: 600, maxWidth: "140px" }}>
             {trend}
           </div>
         )}
@@ -415,23 +362,18 @@ export default function TeamDashboardPage() {
                 </div>
               </section>
 
-              <section style={{ marginBottom: "32px" }}>
-                <h3 style={{ margin: "0 0 8px 0", color: "#2c3e50" }}>Season Leaders</h3>
-                <p style={{ margin: "0 0 16px 0", color: "#7f8c8d", fontSize: "14px" }}>
-                  <Link href="/metric-definitions#season-leaders" style={{ color: "#3498db" }}>
-                    See metric definitions
-                  </Link>{" "}
-                  for leader table stats including usage rate.
-                </p>
-                <div style={{ display: "flex", gap: "20px", flexWrap: "wrap" }}>
-                  <LeaderTable title="Top Scorers" rows={dashboard.leaders.scorers} stat="pts" statLabel="PTS" />
-                  <LeaderTable title="Top Rebounders" rows={dashboard.leaders.rebounders} stat="trb" statLabel="REB" />
-                  <LeaderTable title="Top Assists" rows={dashboard.leaders.assists} stat="ast" statLabel="AST" />
-                  <LeaderTable title="Top Steals" rows={dashboard.leaders.steals} stat="stl" statLabel="STL" />
-                  <LeaderTable title="Top Blocks" rows={dashboard.leaders.blocks} stat="blk" statLabel="BLK" />
-                  <UsageLeaderTable title="Usage Rate" rows={dashboard.leaders.usage} />
-                </div>
-              </section>
+              <TrendCharts
+                trendCharts={dashboard.trend_charts}
+                title="Team Performance Trends"
+                statConfig={TEAM_TREND_STATS}
+                featuredStat={TEAM_FEATURED_TREND_STAT}
+                description="Net rating leads the view, with game-by-game scoring, rebounding, playmaking, shooting efficiency, and ratings below. Hover a point for game details. Oldest game left, most recent right."
+              />
+
+              <SeasonLeadersSection
+                players={dashboard.players}
+                description="for leader table stats including shooting rates, usage, and BPM."
+              />
 
               <section style={{ marginBottom: "32px" }}>
                 <h3 style={{ margin: "0 0 16px 0", color: "#2c3e50" }}>Games Included</h3>

@@ -4,6 +4,8 @@ import {
   formatMp,
   withTeamRole,
 } from "../lib/gameResultsUtils";
+import { getPlayerNameFromRow } from "../lib/playerLinks";
+import PlayerLink from "./PlayerLink";
 
 function ResultsTable({ rows }) {
   return (
@@ -48,9 +50,13 @@ function ResultsTable({ rows }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((player, i) => (
+          {rows.map((player, i) => {
+            const playerName = getPlayerNameFromRow(player, i);
+            return (
             <tr key={i} style={{ backgroundColor: i % 2 === 0 ? '#fff' : '#f8f9fa', borderBottom: '1px solid #eee' }}>
-              <td style={{ padding: '8px 4px', fontWeight: '500', color: '#000' }}>{player.Player || player.Name || player.PLAYER || player.player || Object.values(player)[0] || `Player ${i + 1}`}</td>
+              <td style={{ padding: '8px 4px', fontWeight: '500', color: '#000' }}>
+                <PlayerLink name={playerName} />
+              </td>
               <td style={{ padding: '8px 4px', textAlign: 'center', color: '#000' }}>{formatMp(player.MP || player.MP_mins || player.mp || '0:00')}</td>
               <td style={{ padding: '8px 4px', textAlign: 'center', color: '#000' }}>{player.FG || 0}</td>
               <td style={{ padding: '8px 4px', textAlign: 'center', color: '#000' }}>{player.FGA || 0}</td>
@@ -85,7 +91,8 @@ function ResultsTable({ rows }) {
               <td style={{ padding: '8px 4px', textAlign: 'center', fontWeight: '500', color: '#000', backgroundColor: '#d5f4e6' }}>{Number(player['DRtg'] || 0).toFixed(1)}</td>
               <td style={{ padding: '8px 4px', textAlign: 'center', fontWeight: '500', color: '#000', backgroundColor: '#d5f4e6' }}>{Number(player['BPM'] || 0).toFixed(1)}</td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
     </div>

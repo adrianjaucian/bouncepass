@@ -71,7 +71,7 @@ export const METRIC_SECTIONS = [
         whyItMatters:
           "Season totals hide hot and cold stretches. A team can be below average overall but improving — or vice versa. Trends help coaches and fans spot momentum before the full season average moves.",
         howToRead:
-          "↑ (green) means the last 5 games are higher than earlier games; ↓ (red) means lower. For DRtg, down is usually good even though the arrow is red when the number drops.",
+          "↑ (green) means the last 5 games are higher than earlier games; ↓ (red) means lower. For DRtg, lower is better — an increase shows red and a decrease shows green.",
         inApp: "Requires at least 6 saved games for the selected team. Percentage stats show point changes (e.g. 2.7%); ratings show point changes (e.g. 6.7).",
       },
     ],
@@ -184,6 +184,39 @@ export const METRIC_SECTIONS = [
           "Rough guide: ~20% is moderate, ~25%+ is high, ~30%+ is very high (star level). The dashboard shows minutes-weighted USG% plus a simple per-appearance average in AVG.",
         inApp:
           "Calculated per game when box scores are analyzed; dashboard aggregates with minutes weighting for the USG% column.",
+      },
+      {
+        id: "efg-pct-leaders",
+        name: "Effective FG% (eFG%)",
+        formula: "(FG + 0.5 × 3P) ÷ FGA across all saved games.",
+        summary: "Shooting efficiency from the field, crediting the extra value of threes.",
+        whyItMatters:
+          "Separates efficient scorers from high-volume shooters. Season leaders use total makes and attempts, not a simple average of game percentages.",
+        howToRead:
+          "Total sorts by season eFG%; Per game sorts by the average of each game's eFG%. AVG shows the per-game average column.",
+        inApp: "Season leaders table on the team dashboard.",
+      },
+      {
+        id: "fg3-pct-leaders",
+        name: "3-Point % (3P%) & 3PAr",
+        formula: "3P% = 3P ÷ 3PA; 3PAr = 3PA ÷ FGA.",
+        summary: "Three-point accuracy plus how often a player shoots threes.",
+        whyItMatters:
+          "3P% alone can mislead on low volume. 3PAr shows shot diet — a high 3P% on tiny volume differs from a strong rate on high 3PAr.",
+        howToRead:
+          "Requires at least one 3PA in the sample. 3PAr is always the season attempt rate; Total vs Per game changes sort order for 3P%.",
+        inApp: "Season leaders table with 3P% and 3PAr columns.",
+      },
+      {
+        id: "bpm-leaders",
+        name: "Box Plus/Minus (BPM)",
+        formula: "Minutes-weighted average of per-game BPM from saved box scores.",
+        summary: "All-in-one estimated impact from box score contributions.",
+        whyItMatters:
+          "Ranks who is driving winning contributions across scoring, playmaking, rebounding, and defense in one number.",
+        howToRead:
+          "Positive is above average for that game model. Total uses minutes-weighted BPM; Per game uses the simple average across appearances.",
+        inApp: "Requires advanced stats on saved games. Season leaders table on the team dashboard.",
       },
     ],
   },

@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from boxscore_normalize import get_player_name, is_totals_row_name
 from stats_engine import GAME_MINUTES, estimate_possessions, parse_mp_to_minutes
+from trend_series import build_trend_charts, build_trend_point
 
 TREND_GAME_WINDOW = 5
 
@@ -37,6 +38,20 @@ def get_usage_rate(row: Dict[str, Any]) -> float:
     if value <= 1:
         return value * 100.0
     return value
+
+
+def get_pct_value(row: Dict[str, Any], keys: List[str]) -> Optional[float]:
+    for key in keys:
+        if key not in row or row[key] is None or str(row[key]).strip() == "":
+            continue
+        try:
+            value = float(row[key])
+        except (TypeError, ValueError):
+            continue
+        if value <= 0:
+            return 0.0
+        return value / 100.0 if value > 1 else value
+    return None
 
 
 def filter_player_rows(rows: Optional[List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
@@ -152,7 +167,7 @@ def _format_trend(recent: Optional[float], prior: Optional[float], is_percent: b
     if abs(delta) < (0.0005 if is_percent else 0.05):
         return "— flat over last 5 games"
 
-    arrow = "^" if delta > 0 else "v"
+    arrow = "↑" if delta > 0 else "↓"
     magnitude = abs(delta) * 100 if is_percent else abs(delta)
     suffix = "%" if is_percent else ""
     return f"{arrow} {magnitude:.1f}{suffix} over last 5 games"
@@ -184,6 +199,7 @@ def build_team_dashboard(games: List[Any], team_query: str) -> Dict[str, Any]:
     players: Dict[str, Dict[str, Any]] = {}
     matched_games: List[Dict[str, Any]] = []
     game_snapshots: List[Dict[str, Any]] = []
+    trend_points: List[Dict[str, Any]] = []
 
     for game in games:
         results = json.loads(game.results_json)
@@ -222,6 +238,8 @@ def build_team_dashboard(games: List[Any], team_query: str) -> Dict[str, Any]:
         game_weighted_ortg = 0.0
         game_weighted_drtg = 0.0
         game_player_mp = 0.0
+        team_trb = sum(get_row_number(row, ["TRB", "REB", "TOTAL_REB"]) for row in rows)
+        team_ast = sum(get_row_number(row, ["AST"]) for row in rows)
 
         for index, row in enumerate(rows):
             player_name = get_player_name(row, index)
@@ -235,11 +253,22 @@ def build_team_dashboard(games: List[Any], team_query: str) -> Dict[str, Any]:
                     "stl": 0.0,
                     "blk": 0.0,
                     "mp_mins": 0.0,
+                    "fg": 0.0,
+                    "fga": 0.0,
+                    "fg3": 0.0,
+                    "fg3a": 0.0,
                     "ortg_weighted": 0.0,
                     "drtg_weighted": 0.0,
                     "usg_weighted": 0.0,
                     "usg_sum": 0.0,
                     "usg_readings": 0,
+                    "efg_sum": 0.0,
+                    "efg_readings": 0,
+                    "fg3_sum": 0.0,
+                    "fg3_readings": 0,
+                    "bpm_weighted": 0.0,
+                    "bpm_sum": 0.0,
+                    "bpm_readings": 0,
                 }
 
             mp_mins = parse_mp_to_minutes(row.get("MP"))
@@ -251,9 +280,20 @@ def build_team_dashboard(games: List[Any], team_query: str) -> Dict[str, Any]:
             ast = get_row_number(row, ["AST"])
             stl = get_row_number(row, ["STL"])
             blk = get_row_number(row, ["BLK"])
+            fg = get_row_number(row, ["FG", "FGM"])
+            fga = get_row_number(row, ["FGA"])
+            fg3 = get_row_number(row, ["3P", "3PM"])
+            fg3a = get_row_number(row, ["3PA"])
             ortg = get_row_number(row, ["ORtg"])
             drtg = get_row_number(row, ["DRtg"])
             usg = get_usage_rate(row)
+            bpm = get_row_number(row, ["BPM"])
+            game_efg = get_pct_value(row, ["eFG%"])
+            if game_efg is None and fga > 0:
+                game_efg = (fg + 0.5 * fg3) / fga
+            game_fg3 = get_pct_value(row, ["3P%"])
+            if game_fg3 is None and fg3a > 0:
+                game_fg3 = fg3 / fg3a
 
             bucket = players[player_name]
             bucket["games"] += 1
@@ -262,6 +302,10 @@ def build_team_dashboard(games: List[Any], team_query: str) -> Dict[str, Any]:
             bucket["ast"] += ast
             bucket["stl"] += stl
             bucket["blk"] += blk
+            bucket["fg"] += fg
+            bucket["fga"] += fga
+            bucket["fg3"] += fg3
+            bucket["fg3a"] += fg3a
             bucket["mp_mins"] += mp_mins
             if mp_mins > 0:
                 bucket["ortg_weighted"] += ortg * mp_mins
@@ -273,6 +317,16 @@ def build_team_dashboard(games: List[Any], team_query: str) -> Dict[str, Any]:
                 if usg > 0:
                     bucket["usg_sum"] += usg
                     bucket["usg_readings"] += 1
+                if bpm != 0 or ("BPM" in row and row.get("BPM") is not None and str(row.get("BPM")).strip() != ""):
+                    bucket["bpm_weighted"] += bpm * mp_mins
+                    bucket["bpm_sum"] += bpm
+                    bucket["bpm_readings"] += 1
+            if fga > 0 and game_efg is not None:
+                bucket["efg_sum"] += game_efg
+                bucket["efg_readings"] += 1
+            if fg3a > 0 and game_fg3 is not None:
+                bucket["fg3_sum"] += game_fg3
+                bucket["fg3_readings"] += 1
 
             game_team_mp += mp_mins
 
@@ -321,10 +375,35 @@ def build_team_dashboard(games: List[Any], team_query: str) -> Dict[str, Any]:
             }
         )
 
+        game_ortg = round(game_weighted_ortg / game_player_mp, 1) if game_player_mp > 0 else None
+        game_drtg = round(game_weighted_drtg / game_player_mp, 1) if game_player_mp > 0 else None
+        game_team_name = game.home_team_name if side == "home" else game.away_team_name
+
+        trend_points.append(
+            build_trend_point(
+                game_date=game.game_date,
+                opponent=opponent_name,
+                team_name=str(game_team_name).strip() if game_team_name else None,
+                pts=team_game_pts,
+                trb=team_trb,
+                ast=team_ast,
+                ts_pct=shooting_pct(team_game_pts, 2 * (team_fga + 0.44 * team_fta)),
+                ortg=game_ortg,
+                drtg=game_drtg,
+            )
+        )
+
     player_list = []
     for bucket in players.values():
         mp = bucket["mp_mins"]
         usg_readings = bucket["usg_readings"]
+        efg_readings = bucket["efg_readings"]
+        fg3_readings = bucket["fg3_readings"]
+        bpm_readings = bucket["bpm_readings"]
+        fg = bucket["fg"]
+        fga = bucket["fga"]
+        fg3 = bucket["fg3"]
+        fg3a = bucket["fg3a"]
         player_list.append(
             {
                 "player": bucket["player"],
@@ -335,10 +414,19 @@ def build_team_dashboard(games: List[Any], team_query: str) -> Dict[str, Any]:
                 "stl": int(bucket["stl"]),
                 "blk": int(bucket["blk"]),
                 "mp_mins": round(mp, 1),
+                "fga": int(fga),
+                "fg3a": int(fg3a),
                 "ortg": round(bucket["ortg_weighted"] / mp, 1) if mp > 0 else None,
                 "drtg": round(bucket["drtg_weighted"] / mp, 1) if mp > 0 else None,
                 "usg_pct": round(bucket["usg_weighted"] / mp, 1) if mp > 0 and bucket["usg_weighted"] > 0 else None,
                 "usg_avg": round(bucket["usg_sum"] / usg_readings, 1) if usg_readings > 0 else None,
+                "efg_pct": shooting_pct(fg + 0.5 * fg3, fga),
+                "efg_avg": round(bucket["efg_sum"] / efg_readings, 4) if efg_readings > 0 else None,
+                "fg3_pct": shooting_pct(fg3, fg3a),
+                "fg3par": shooting_pct(fg3a, fga),
+                "fg3_avg": round(bucket["fg3_sum"] / fg3_readings, 4) if fg3_readings > 0 else None,
+                "bpm": round(bucket["bpm_weighted"] / mp, 1) if mp > 0 and bpm_readings > 0 else None,
+                "bpm_avg": round(bucket["bpm_sum"] / bpm_readings, 1) if bpm_readings > 0 else None,
             }
         )
 
@@ -408,6 +496,7 @@ def build_team_dashboard(games: List[Any], team_query: str) -> Dict[str, Any]:
         },
         "players": sorted(player_list, key=lambda item: (-item["pts"], item["player"].lower())),
         "games": sorted(matched_games, key=lambda item: item["game_date"], reverse=True),
+        "trend_charts": build_trend_charts(trend_points),
     }
 
 

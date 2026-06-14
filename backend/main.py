@@ -30,10 +30,14 @@ from schemas import (
     GameSaveRequest,
     GameSummary,
     GameUpdateRequest,
+    PlayerDashboardResponse,
+    PlayerLeagueLeadersResponse,
+    PlayerListResponse,
     TeamDashboardResponse,
     TeamListResponse,
 )
 from stats_engine import generate_advanced_stats
+from player_dashboard import build_league_leader_players, build_player_dashboard, collect_player_names
 from team_dashboard import build_team_dashboard, collect_team_names
 
 load_dotenv()
@@ -330,6 +334,32 @@ def team_dashboard(team_name: str, db: Session = Depends(get_db)) -> TeamDashboa
     if dashboard["games_played"] == 0:
         raise HTTPException(status_code=404, detail=f"No saved games found for team '{query}'")
     return TeamDashboardResponse(**dashboard)
+
+
+@app.get("/players", response_model=PlayerListResponse)
+def list_players(db: Session = Depends(get_db)) -> PlayerListResponse:
+    games = db.query(SavedGame).order_by(SavedGame.game_date.desc(), SavedGame.created_at.desc()).all()
+    return PlayerListResponse(players=collect_player_names(games))
+
+
+@app.get("/players/leaders", response_model=PlayerLeagueLeadersResponse)
+def player_leaders(db: Session = Depends(get_db)) -> PlayerLeagueLeadersResponse:
+    games = db.query(SavedGame).order_by(SavedGame.game_date.desc(), SavedGame.created_at.desc()).all()
+    payload = build_league_leader_players(games)
+    return PlayerLeagueLeadersResponse(**payload)
+
+
+@app.get("/players/dashboard", response_model=PlayerDashboardResponse)
+def player_dashboard(player_name: str, db: Session = Depends(get_db)) -> PlayerDashboardResponse:
+    query = player_name.strip()
+    if not query:
+        raise HTTPException(status_code=400, detail="player_name is required")
+
+    games = db.query(SavedGame).order_by(SavedGame.game_date.desc(), SavedGame.created_at.desc()).all()
+    dashboard = build_player_dashboard(games, query)
+    if dashboard["games_played"] == 0:
+        raise HTTPException(status_code=404, detail=f"No saved games found for player '{query}'")
+    return PlayerDashboardResponse(**dashboard)
 
 
 @app.get("/games/{game_id}", response_model=GameDetail)
