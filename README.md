@@ -116,6 +116,10 @@ backend/
 ### Backend
 
 ```bash
+cd /Users/adrianjaucian/ADVstats/backend && .venv/bin/uvicorn main:app --reload --port 8000
+
+##OR 
+
 cd backend
 
 python -m venv .venv
@@ -129,6 +133,10 @@ uvicorn main:app --reload --port 8000
 ### Frontend
 
 ```bash
+cd /Users/adrianjaucian/ADVstats/frontend && npm run dev
+
+##OR
+
 cd frontend
 
 npm install
