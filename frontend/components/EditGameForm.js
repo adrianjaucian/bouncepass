@@ -1,10 +1,12 @@
 import { useState } from "react";
 import api from "../lib/api";
+import { GENDER_OPTIONS } from "../lib/gender";
 
 export default function EditGameForm({ game, onUpdated, onCancel }) {
   const [gameDate, setGameDate] = useState(game.game_date || "");
   const [homeTeamName, setHomeTeamName] = useState(game.home_team_name || "");
   const [awayTeamName, setAwayTeamName] = useState(game.away_team_name || "");
+  const [gender, setGender] = useState(game.gender || "men");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -28,6 +30,7 @@ export default function EditGameForm({ game, onUpdated, onCancel }) {
         game_date: gameDate,
         home_team_name: homeTeamName.trim(),
         away_team_name: hasAwayTeam ? awayTeamName.trim() : null,
+        gender,
       });
       onUpdated?.(res.data);
     } catch (err) {
@@ -46,6 +49,20 @@ export default function EditGameForm({ game, onUpdated, onCancel }) {
     <div style={{ marginTop: "12px", padding: "16px", backgroundColor: "#fff9e6", borderRadius: "8px", border: "1px solid #f0d98c" }}>
       <h4 style={{ margin: "0 0 12px 0", color: "#2c3e50" }}>Edit Game Details</h4>
       <div style={{ display: "grid", gap: "12px", maxWidth: "520px" }}>
+        <label style={{ display: "grid", gap: "6px", color: "#000", fontSize: "14px" }}>
+          Competition
+          <select
+            value={gender}
+            onChange={(e) => setGender(e.target.value)}
+            style={{ padding: "10px 12px", borderRadius: "6px", border: "1px solid #d0d7de", color: "#000", backgroundColor: "#fff" }}
+          >
+            {GENDER_OPTIONS.filter((option) => option.value).map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <label style={{ display: "grid", gap: "6px", color: "#000", fontSize: "14px" }}>
           Game Date
           <input

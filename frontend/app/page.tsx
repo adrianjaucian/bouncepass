@@ -1,6 +1,7 @@
 "use client";
 
 import SiteNav from "../components/SiteNav";
+import Nbl1FixtureSync from "../components/Nbl1FixtureSync";
 import UploadDual from "../components/UploadDual";
 
 export default function Page() {
@@ -10,13 +11,14 @@ export default function Page() {
         <header style={{ textAlign: "center", marginBottom: "24px", backgroundColor: "#fff", padding: "30px", borderRadius: "10px", boxShadow: "0 2px 10px rgba(0,0,0,0.1)" }}>
           <h1 style={{ color: "#2c3e50", margin: "0 0 10px 0", fontSize: "2.5em" }}>🏀 Bounce PASS - Player Analytics System & Storage 🏀</h1>
           <p style={{ color: "#7f8c8d", margin: 0, fontSize: "1.1em" }}>
-            Upload box score CSVs, calculate advanced metrics, and export results.
+            Sync NBL1 fixtures automatically or upload box score CSVs, calculate advanced metrics, and export results.
           </p>
         </header>
 
         <SiteNav />
 
         <main style={{ backgroundColor: "#fff", padding: "30px", borderRadius: "10px", boxShadow: "0 2px 10px rgba(0,0,0,0.1)" }}>
+          <Nbl1FixtureSync />
           <UploadDual />
 
           <section style={{ marginTop: "32px", color: "#34495e", lineHeight: 1.6 }}>

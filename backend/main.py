@@ -30,15 +30,22 @@ from schemas import (
     GameSaveRequest,
     GameSummary,
     GameUpdateRequest,
+    Nbl1SyncRequest,
+    Nbl1SyncResponse,
+    Nbl1SyncStartResponse,
+    Nbl1SyncStatusResponse,
     PlayerDashboardResponse,
     PlayerLeagueLeadersResponse,
     PlayerListResponse,
     TeamDashboardResponse,
     TeamListResponse,
 )
-from stats_engine import generate_advanced_stats
+from game_scores import scores_from_results
+from gender_utils import collect_team_options, filter_games_by_gender, normalize_gender
+from nbl1_sync_job import get_sync_status, start_sync_job
 from player_dashboard import build_league_leader_players, build_player_dashboard, collect_player_names
-from team_dashboard import build_team_dashboard, collect_team_names
+from team_dashboard import build_team_dashboard
+from stats_engine import generate_advanced_stats
 
 load_dotenv()
 
@@ -106,34 +113,12 @@ async def parse_uploaded_csv(file: UploadFile) -> Tuple[Optional[pd.DataFrame], 
     return df, None
 
 
-def team_pts_from_rows(rows: List[Dict[str, Any]]) -> Optional[int]:
-    if not rows:
-        return None
-    df = pd.DataFrame(rows)
-    if df.empty:
-        return None
-    if "Player" in df.columns:
-        df = df[~df["Player"].apply(is_totals_row_name)]
-    else:
-        df = clean_dataframe(df)
-    if df.empty or "PTS" not in df.columns:
-        return None
-    return int(pd.to_numeric(df["PTS"], errors="coerce").fillna(0).sum())
-
-
-def scores_from_results(results: Dict[str, Any]) -> Tuple[Optional[int], Optional[int]]:
-    if not isinstance(results, dict):
-        return None, None
-    home_rows = results.get("home")
-    away_rows = results.get("away")
-    home_score = team_pts_from_rows(home_rows) if home_rows else None
-    away_score = team_pts_from_rows(away_rows) if away_rows else None
-    return home_score, away_score
-
-
 def game_to_summary(game: SavedGame) -> GameSummary:
-    results = json.loads(game.results_json)
-    home_score, away_score = scores_from_results(results)
+    home_score = game.home_score
+    away_score = game.away_score
+    if home_score is None and away_score is None:
+        results = json.loads(game.results_json)
+        home_score, away_score = scores_from_results(results)
     return GameSummary(
         id=game.id,
         game_date=game.game_date,
@@ -141,13 +126,17 @@ def game_to_summary(game: SavedGame) -> GameSummary:
         away_team_name=game.away_team_name,
         home_score=home_score,
         away_score=away_score,
+        gender=normalize_gender(game.gender),
         created_at=game.created_at.isoformat(),
     )
 
 
 def game_to_detail(game: SavedGame) -> GameDetail:
     results = json.loads(game.results_json)
-    home_score, away_score = scores_from_results(results)
+    home_score = game.home_score
+    away_score = game.away_score
+    if home_score is None and away_score is None:
+        home_score, away_score = scores_from_results(results)
     return GameDetail(
         id=game.id,
         game_date=game.game_date,
@@ -155,6 +144,7 @@ def game_to_detail(game: SavedGame) -> GameDetail:
         away_team_name=game.away_team_name,
         home_score=home_score,
         away_score=away_score,
+        gender=normalize_gender(game.gender),
         created_at=game.created_at.isoformat(),
         results=results,
     )
@@ -299,64 +289,146 @@ def upload_nbl1_url_legacy(body: BoxScoreUrlRequest) -> Any:
 
 @app.post("/games", response_model=GameDetail)
 def save_game(game_in: GameSaveRequest, db: Session = Depends(get_db)) -> GameDetail:
+    fixture_id = (game_in.fixture_id or "").strip() or None
+    if fixture_id:
+        existing = db.query(SavedGame).filter(SavedGame.fixture_id == fixture_id).first()
+        if existing:
+            raise HTTPException(status_code=409, detail="This game is already saved")
+
     record = SavedGame(
         game_date=game_in.game_date.strip(),
         home_team_name=game_in.home_team_name.strip(),
         away_team_name=game_in.away_team_name.strip() if game_in.away_team_name else None,
         results_json=json.dumps(game_in.results),
+        fixture_id=fixture_id,
+        source_url=(game_in.source_url or "").strip() or None,
+        provider=(game_in.provider or "").strip() or None,
+        gender=normalize_gender(game_in.gender),
     )
+    home_score, away_score = scores_from_results(game_in.results)
+    record.home_score = home_score
+    record.away_score = away_score
     db.add(record)
     db.commit()
     db.refresh(record)
     return game_to_detail(record)
 
 
+@app.post("/sync/nbl1-fixtures", response_model=Nbl1SyncStartResponse)
+def sync_nbl1_fixtures_endpoint(body: Nbl1SyncRequest) -> Nbl1SyncStartResponse:
+    payload = start_sync_job(
+        season_year=body.season_year,
+        max_imports=body.max_imports or 15,
+    )
+    return Nbl1SyncStartResponse(**payload)
+
+
+@app.get("/sync/nbl1-fixtures/status", response_model=Nbl1SyncStatusResponse)
+def sync_nbl1_fixtures_status() -> Nbl1SyncStatusResponse:
+    status = get_sync_status()
+    result = status.get("result")
+    return Nbl1SyncStatusResponse(
+        running=status["running"],
+        progress=status.get("progress") or "",
+        result=Nbl1SyncResponse(**result) if result else None,
+        error=status.get("error"),
+    )
+
+
 @app.get("/games", response_model=GameListResponse)
-def list_games(db: Session = Depends(get_db)) -> GameListResponse:
-    games = db.query(SavedGame).order_by(SavedGame.game_date.desc(), SavedGame.created_at.desc()).all()
-    return GameListResponse(games=[game_to_summary(game) for game in games])
+def list_games(
+    gender: Optional[str] = None,
+    team: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+) -> GameListResponse:
+    from sqlalchemy import func, or_
+
+    safe_limit = max(1, min(limit, 200))
+    safe_offset = max(0, offset)
+
+    query = db.query(SavedGame)
+    normalized_gender = normalize_gender(gender)
+    if normalized_gender:
+        query = query.filter(SavedGame.gender == normalized_gender)
+
+    team_query = (team or "").strip().lower()
+    if team_query:
+        pattern = f"%{team_query}%"
+        query = query.filter(
+            or_(
+                func.lower(SavedGame.home_team_name).like(pattern),
+                func.lower(SavedGame.away_team_name).like(pattern),
+            )
+        )
+
+    total = query.count()
+    games = (
+        query.order_by(SavedGame.game_date.desc(), SavedGame.created_at.desc())
+        .offset(safe_offset)
+        .limit(safe_limit)
+        .all()
+    )
+    return GameListResponse(
+        games=[game_to_summary(game) for game in games],
+        total=total,
+        limit=safe_limit,
+        offset=safe_offset,
+    )
 
 
 @app.get("/teams", response_model=TeamListResponse)
-def list_teams(db: Session = Depends(get_db)) -> TeamListResponse:
+def list_teams(gender: Optional[str] = None, db: Session = Depends(get_db)) -> TeamListResponse:
     games = db.query(SavedGame).all()
-    return TeamListResponse(teams=collect_team_names(games))
+    filtered = filter_games_by_gender(games, gender)
+    options = collect_team_options(filtered)
+    return TeamListResponse(teams=[option["label"] for option in options], options=options)
 
 
 @app.get("/teams/dashboard", response_model=TeamDashboardResponse)
-def team_dashboard(team_name: str, db: Session = Depends(get_db)) -> TeamDashboardResponse:
+def team_dashboard(
+    team_name: str,
+    gender: Optional[str] = None,
+    db: Session = Depends(get_db),
+) -> TeamDashboardResponse:
     query = team_name.strip()
     if not query:
         raise HTTPException(status_code=400, detail="team_name is required")
 
     games = db.query(SavedGame).order_by(SavedGame.game_date.desc(), SavedGame.created_at.desc()).all()
-    dashboard = build_team_dashboard(games, query)
+    dashboard = build_team_dashboard(games, query, gender=normalize_gender(gender))
     if dashboard["games_played"] == 0:
         raise HTTPException(status_code=404, detail=f"No saved games found for team '{query}'")
     return TeamDashboardResponse(**dashboard)
 
 
 @app.get("/players", response_model=PlayerListResponse)
-def list_players(db: Session = Depends(get_db)) -> PlayerListResponse:
+def list_players(gender: Optional[str] = None, db: Session = Depends(get_db)) -> PlayerListResponse:
     games = db.query(SavedGame).order_by(SavedGame.game_date.desc(), SavedGame.created_at.desc()).all()
-    return PlayerListResponse(players=collect_player_names(games))
+    filtered = filter_games_by_gender(games, gender)
+    return PlayerListResponse(players=collect_player_names(filtered))
 
 
 @app.get("/players/leaders", response_model=PlayerLeagueLeadersResponse)
-def player_leaders(db: Session = Depends(get_db)) -> PlayerLeagueLeadersResponse:
+def player_leaders(gender: Optional[str] = None, db: Session = Depends(get_db)) -> PlayerLeagueLeadersResponse:
     games = db.query(SavedGame).order_by(SavedGame.game_date.desc(), SavedGame.created_at.desc()).all()
-    payload = build_league_leader_players(games)
+    payload = build_league_leader_players(games, gender=normalize_gender(gender))
     return PlayerLeagueLeadersResponse(**payload)
 
 
 @app.get("/players/dashboard", response_model=PlayerDashboardResponse)
-def player_dashboard(player_name: str, db: Session = Depends(get_db)) -> PlayerDashboardResponse:
+def player_dashboard(
+    player_name: str,
+    gender: Optional[str] = None,
+    db: Session = Depends(get_db),
+) -> PlayerDashboardResponse:
     query = player_name.strip()
     if not query:
         raise HTTPException(status_code=400, detail="player_name is required")
 
     games = db.query(SavedGame).order_by(SavedGame.game_date.desc(), SavedGame.created_at.desc()).all()
-    dashboard = build_player_dashboard(games, query)
+    dashboard = build_player_dashboard(games, query, gender=normalize_gender(gender))
     if dashboard["games_played"] == 0:
         raise HTTPException(status_code=404, detail=f"No saved games found for player '{query}'")
     return PlayerDashboardResponse(**dashboard)
@@ -379,6 +451,8 @@ def update_game(game_id: int, game_in: GameUpdateRequest, db: Session = Depends(
     game.game_date = game_in.game_date.strip()
     game.home_team_name = game_in.home_team_name.strip()
     game.away_team_name = game_in.away_team_name.strip() if game_in.away_team_name else None
+    if game_in.gender is not None:
+        game.gender = normalize_gender(game_in.gender)
     db.commit()
     db.refresh(game)
 

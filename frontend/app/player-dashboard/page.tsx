@@ -7,6 +7,7 @@ import PlayerLeagueLeaders from "../../components/PlayerLeagueLeaders";
 import SiteNav from "../../components/SiteNav";
 import TrendCharts from "../../components/TrendCharts";
 import api from "../../lib/api";
+import { GENDER_OPTIONS } from "../../lib/gender";
 
 type StatRank = { rank: number; of: number };
 
@@ -166,6 +167,7 @@ function PlayerDashboardContent() {
   const initialPlayer = searchParams.get("player") || "";
 
   const [players, setPlayers] = useState<string[]>([]);
+  const [genderFilter, setGenderFilter] = useState("");
   const [search, setSearch] = useState(initialPlayer);
   const [selectedPlayer, setSelectedPlayer] = useState(initialPlayer);
   const [dashboard, setDashboard] = useState<PlayerDashboard | null>(null);
@@ -175,14 +177,15 @@ function PlayerDashboardContent() {
   useEffect(() => {
     const loadPlayers = async () => {
       try {
-        const res = await api.get("/players");
+        const params = genderFilter ? { gender: genderFilter } : {};
+        const res = await api.get("/players", { params });
         setPlayers(res.data?.players || []);
       } catch {
         setPlayers([]);
       }
     };
     loadPlayers();
-  }, []);
+  }, [genderFilter]);
 
   useEffect(() => {
     const query = initialPlayer.trim();
@@ -203,7 +206,9 @@ function PlayerDashboardContent() {
       setError("");
       setDashboard(null);
       try {
-        const res = await api.get("/players/dashboard", { params: { player_name: selectedPlayer.trim() } });
+        const params: { player_name: string; gender?: string } = { player_name: selectedPlayer.trim() };
+        if (genderFilter) params.gender = genderFilter;
+        const res = await api.get("/players/dashboard", { params });
         setDashboard(res.data);
       } catch (err: any) {
         const message =
@@ -217,7 +222,7 @@ function PlayerDashboardContent() {
       }
     };
     loadDashboard();
-  }, [selectedPlayer]);
+  }, [selectedPlayer, genderFilter]);
 
   const filteredPlayers = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -265,6 +270,27 @@ function PlayerDashboardContent() {
             boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
           }}
         >
+          <div style={{ display: "flex", gap: "10px", marginBottom: "20px", flexWrap: "wrap" }}>
+            {GENDER_OPTIONS.map((option) => (
+              <button
+                key={option.value || "all"}
+                type="button"
+                onClick={() => setGenderFilter(option.value)}
+                style={{
+                  padding: "8px 14px",
+                  backgroundColor: genderFilter === option.value ? "#3498db" : "#ecf0f1",
+                  color: genderFilter === option.value ? "#fff" : "#2c3e50",
+                  border: "none",
+                  borderRadius: "6px",
+                  fontWeight: "bold",
+                  cursor: "pointer",
+                }}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
           <form onSubmit={handleSearchSubmit} style={{ marginBottom: "24px" }}>
             <label htmlFor="player-search" style={{ display: "block", marginBottom: "8px", color: "#2c3e50", fontWeight: "bold" }}>
               Search players
@@ -312,7 +338,7 @@ function PlayerDashboardContent() {
             )}
           </form>
 
-          <PlayerLeagueLeaders />
+          <PlayerLeagueLeaders gender={genderFilter} />
 
           {loading && <p style={{ color: "#56616b" }}>Loading player dashboard...</p>}
           {error && (

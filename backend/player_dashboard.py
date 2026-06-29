@@ -2,6 +2,7 @@ import json
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
+from gender_utils import filter_games_by_gender
 from boxscore_normalize import get_player_name
 from stats_engine import parse_mp_to_minutes
 from team_dashboard import (
@@ -296,7 +297,8 @@ def _finalize_player_bucket(bucket: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def build_league_players(games: List[Any]) -> Tuple[List[Dict[str, Any]], int]:
+def build_league_players(games: List[Any], gender: Optional[str] = None) -> Tuple[List[Dict[str, Any]], int]:
+    games = filter_games_by_gender(games, gender)
     players: Dict[str, Dict[str, Any]] = {}
 
     for game in games:
@@ -385,8 +387,8 @@ def find_player_profile(players: List[Dict[str, Any]], query: str) -> Optional[D
     return sorted(matches, key=lambda player: (-player["games"], -player["mp_mins"]))[0]
 
 
-def build_league_leader_players(games: List[Any]) -> Dict[str, Any]:
-    player_list, league_games = build_league_players(games)
+def build_league_leader_players(games: List[Any], gender: Optional[str] = None) -> Dict[str, Any]:
+    player_list, league_games = build_league_players(games, gender=gender)
     slim_players = []
     for player in player_list:
         slim = {key: value for key, value in player.items() if key != "game_log"}
@@ -398,8 +400,8 @@ def build_league_leader_players(games: List[Any]) -> Dict[str, Any]:
     }
 
 
-def build_player_dashboard(games: List[Any], player_query: str) -> Dict[str, Any]:
-    player_list, league_games = build_league_players(games)
+def build_player_dashboard(games: List[Any], player_query: str, gender: Optional[str] = None) -> Dict[str, Any]:
+    player_list, league_games = build_league_players(games, gender=gender)
     profile = find_player_profile(player_list, player_query)
     if not profile:
         return {

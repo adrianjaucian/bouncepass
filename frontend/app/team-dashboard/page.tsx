@@ -7,6 +7,13 @@ import SeasonLeadersSection from "../../components/SeasonLeadersSection";
 import TrendCharts, { TEAM_FEATURED_TREND_STAT, TEAM_TREND_STATS } from "../../components/TrendCharts";
 import api from "../../lib/api";
 import { getMetricAnchor } from "../../lib/metricDefinitions";
+import { GENDER_OPTIONS, decodeTeamOption, encodeTeamOption } from "../../lib/gender";
+
+type TeamOption = {
+  name: string;
+  gender?: string | null;
+  label: string;
+};
 
 type DashboardPlayer = {
   player: string;
@@ -161,36 +168,45 @@ function MetricCard({
 }
 
 export default function TeamDashboardPage() {
-  const [teams, setTeams] = useState<string[]>([]);
-  const [teamName, setTeamName] = useState(DEFAULT_TEAM);
+  const [teamOptions, setTeamOptions] = useState<TeamOption[]>([]);
+  const [teamSelection, setTeamSelection] = useState(encodeTeamOption(DEFAULT_TEAM, "men"));
+  const [genderFilter, setGenderFilter] = useState("");
   const [dashboard, setDashboard] = useState<TeamDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  const selectedTeam = decodeTeamOption(teamSelection);
+
   useEffect(() => {
     const loadTeams = async () => {
       try {
-        const res = await api.get("/teams");
-        const list: string[] = res.data?.teams || [];
-        setTeams(list);
-        const spiderMatch = list.find((name) => /spider/i.test(name));
-        if (spiderMatch) setTeamName(spiderMatch);
-        else if (list.length > 0) setTeamName(list[0]);
+        const params = genderFilter ? { gender: genderFilter } : {};
+        const res = await api.get("/teams", { params });
+        const options: TeamOption[] = res.data?.options || [];
+        setTeamOptions(options);
+        const spiderMatch = options.find((option) => /spider/i.test(option.name));
+        if (spiderMatch) {
+          setTeamSelection(encodeTeamOption(spiderMatch.name, spiderMatch.gender || ""));
+        } else if (options.length > 0) {
+          setTeamSelection(encodeTeamOption(options[0].name, options[0].gender || ""));
+        }
       } catch {
-        setTeams([]);
+        setTeamOptions([]);
       }
     };
     loadTeams();
-  }, []);
+  }, [genderFilter]);
 
   useEffect(() => {
     const loadDashboard = async () => {
-      if (!teamName.trim()) return;
+      if (!selectedTeam.name.trim()) return;
       setLoading(true);
       setError("");
       setDashboard(null);
       try {
-        const res = await api.get("/teams/dashboard", { params: { team_name: teamName.trim() } });
+        const params: { team_name: string; gender?: string } = { team_name: selectedTeam.name.trim() };
+        if (selectedTeam.gender) params.gender = selectedTeam.gender;
+        const res = await api.get("/teams/dashboard", { params });
         setDashboard(res.data);
       } catch (err: any) {
         const message =
@@ -204,7 +220,7 @@ export default function TeamDashboardPage() {
       }
     };
     loadDashboard();
-  }, [teamName]);
+  }, [teamSelection]);
 
   const formatRating = (value?: number | null) => (value == null ? "—" : value.toFixed(1));
   const formatPercent = (value?: number | null) => (value == null ? "—" : `${(value * 100).toFixed(1)}%`);
@@ -239,12 +255,32 @@ export default function TeamDashboardPage() {
             boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
           }}
         >
-          <div style={{ marginBottom: "24px", maxWidth: "520px" }}>
+          <div style={{ marginBottom: "24px", display: "grid", gap: "16px", maxWidth: "520px" }}>
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+              {GENDER_OPTIONS.map((option) => (
+                <button
+                  key={option.value || "all"}
+                  type="button"
+                  onClick={() => setGenderFilter(option.value)}
+                  style={{
+                    padding: "8px 14px",
+                    backgroundColor: genderFilter === option.value ? "#3498db" : "#ecf0f1",
+                    color: genderFilter === option.value ? "#fff" : "#2c3e50",
+                    border: "none",
+                    borderRadius: "6px",
+                    fontWeight: "bold",
+                    cursor: "pointer",
+                  }}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
             <label style={{ display: "grid", gap: "8px", color: "#000", fontSize: "14px" }}>
               Team
               <select
-                value={teamName}
-                onChange={(e) => setTeamName(e.target.value)}
+                value={teamSelection}
+                onChange={(e) => setTeamSelection(e.target.value)}
                 style={{
                   padding: "10px 12px",
                   borderRadius: "6px",
@@ -253,10 +289,10 @@ export default function TeamDashboardPage() {
                   backgroundColor: "#fff",
                 }}
               >
-                {teams.length === 0 && <option value={teamName}>{teamName}</option>}
-                {teams.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
+                {teamOptions.length === 0 && <option value={teamSelection}>{selectedTeam.name}</option>}
+                {teamOptions.map((option) => (
+                  <option key={encodeTeamOption(option.name, option.gender || "")} value={encodeTeamOption(option.name, option.gender || "")}>
+                    {option.label}
                   </option>
                 ))}
               </select>

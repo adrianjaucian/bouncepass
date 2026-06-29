@@ -6,7 +6,7 @@ import GameResultsView from "./GameResultsView";
 import SaveGameForm from "./SaveGameForm";
 
 export default function UploadDual() {
-  const [uploadMode, setUploadMode] = useState("url"); // "url", "file", or "paste"
+  const [uploadMode, setUploadMode] = useState("file"); // "file", "paste", or "url"
   const [homeFile, setHomeFile] = useState(null);
   const [awayFile, setAwayFile] = useState(null);
   const [homeCSV, setHomeCSV] = useState("");
@@ -355,7 +355,7 @@ export default function UploadDual() {
         <div style={{ backgroundColor: '#e8f4fd', padding: '15px', borderRadius: '5px', marginBottom: '20px', border: '1px solid #bee5eb' }}>
           <h4 style={{ margin: '0 0 10px 0', color: '#000' }}>Supported Format:</h4>
           <p style={{ margin: 0, color: '#000', fontSize: '14px' }}>
-            Upload a CSV file, paste box score data, or paste a box score link to load both teams automatically.
+            Use NBL1 Auto Sync above for league games, upload CSVs, paste data, or load a single custom game from a box score URL.
             The system will calculate advanced statistics including True Shooting %, Effective FG %, Usage Rate, and more.
           </p>
         </div>
@@ -409,7 +409,6 @@ export default function UploadDual() {
           </button>
         </div>
 
-        {/* Box score URL mode */}
         {uploadMode === "url" && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px', maxWidth: '760px' }}>
             <label style={{ fontWeight: '600', color: '#000' }}>Box Score URL</label>
@@ -417,7 +416,7 @@ export default function UploadDual() {
               type="url"
               value={gameUrl}
               onChange={(e) => setGameUrl(e.target.value)}
-              placeholder="https://www.nbl1.com.au/games/... or https://www.pba.ph/recap?match=..."
+              placeholder="https://www.nbl1.com.au/games/... or other supported box score page"
               style={{
                 padding: '12px',
                 border: '2px dashed #16a085',
@@ -428,7 +427,7 @@ export default function UploadDual() {
               }}
             />
             <p style={{ margin: 0, color: '#56616b', fontSize: '13px' }}>
-              Paste any box score page with HTML tables (NBL1, PBA, and others). The first detected team table is home and the second is away.
+              Load a single custom game from an NBL1 Game Centre link or other supported box score page.
             </p>
             <button
               onClick={uploadFromUrl}
@@ -540,6 +539,9 @@ export default function UploadDual() {
             initialGameDate={gameMeta?.game_date || ""}
             initialHomeTeamName={gameMeta?.home_team_name || ""}
             initialAwayTeamName={gameMeta?.away_team_name || ""}
+            initialFixtureId={gameMeta?.fixture_id || ""}
+            initialSourceUrl={gameMeta?.source_url || ""}
+            initialProvider={gameMeta?.provider || ""}
           />
         </div>
       )}

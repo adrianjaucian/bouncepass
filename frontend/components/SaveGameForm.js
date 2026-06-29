@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "../lib/api";
+import { GENDER_OPTIONS } from "../lib/gender";
 
 export default function SaveGameForm({
   results,
@@ -7,17 +8,23 @@ export default function SaveGameForm({
   initialGameDate = "",
   initialHomeTeamName = "",
   initialAwayTeamName = "",
+  initialGender = "men",
+  initialFixtureId = "",
+  initialSourceUrl = "",
+  initialProvider = "",
 }) {
   const today = new Date().toISOString().slice(0, 10);
   const [gameDate, setGameDate] = useState(initialGameDate || today);
   const [homeTeamName, setHomeTeamName] = useState(initialHomeTeamName || "");
   const [awayTeamName, setAwayTeamName] = useState(initialAwayTeamName || "");
+  const [gender, setGender] = useState(initialGender || "men");
 
   useEffect(() => {
     if (initialGameDate) setGameDate(initialGameDate);
     if (initialHomeTeamName) setHomeTeamName(initialHomeTeamName);
     if (initialAwayTeamName) setAwayTeamName(initialAwayTeamName);
-  }, [initialGameDate, initialHomeTeamName, initialAwayTeamName]);
+    if (initialGender) setGender(initialGender);
+  }, [initialGameDate, initialHomeTeamName, initialAwayTeamName, initialGender]);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -32,18 +39,28 @@ export default function SaveGameForm({
       setError("Away team name is required when away stats are included.");
       return;
     }
+    if (!gender) {
+      setError("Select whether this is a men's or women's game.");
+      return;
+    }
 
     setSaving(true);
     setError("");
     setMessage("");
 
     try {
-      const res = await api.post("/games", {
+      const payload = {
         game_date: gameDate,
         home_team_name: homeTeamName.trim(),
         away_team_name: hasAwayTeam ? awayTeamName.trim() : null,
+        gender,
         results,
-      });
+      };
+      if (initialFixtureId) payload.fixture_id = initialFixtureId;
+      if (initialSourceUrl) payload.source_url = initialSourceUrl;
+      if (initialProvider) payload.provider = initialProvider;
+
+      const res = await api.post("/games", payload);
       setMessage(`Game saved (ID ${res.data.id}). View it on the Saved Games page.`);
     } catch (err) {
       const serverMessage =
@@ -61,6 +78,20 @@ export default function SaveGameForm({
     <div style={{ marginTop: '24px', padding: '20px', backgroundColor: '#f4f8fb', borderRadius: '8px', border: '1px solid #d6e4f0' }}>
       <h3 style={{ margin: '0 0 16px 0', color: '#2c3e50' }}>Save Game</h3>
       <div style={{ display: 'grid', gap: '12px', maxWidth: '520px' }}>
+        <label style={{ display: 'grid', gap: '6px', color: '#000', fontSize: '14px' }}>
+          Competition
+          <select
+            value={gender}
+            onChange={(e) => setGender(e.target.value)}
+            style={{ padding: '10px 12px', borderRadius: '6px', border: '1px solid #d0d7de', color: '#000', backgroundColor: '#fff' }}
+          >
+            {GENDER_OPTIONS.filter((option) => option.value).map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <label style={{ display: 'grid', gap: '6px', color: '#000', fontSize: '14px' }}>
           Game Date
           <input

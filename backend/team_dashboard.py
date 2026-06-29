@@ -6,6 +6,8 @@ from boxscore_normalize import get_player_name, is_totals_row_name
 from stats_engine import GAME_MINUTES, estimate_possessions, parse_mp_to_minutes
 from trend_series import build_trend_charts, build_trend_point
 
+from gender_utils import filter_games_by_gender
+
 TREND_GAME_WINDOW = 5
 
 
@@ -195,7 +197,8 @@ def _aggregate_snapshots(snapshots: List[Dict[str, float]]) -> Dict[str, float]:
     return aggregate
 
 
-def build_team_dashboard(games: List[Any], team_query: str) -> Dict[str, Any]:
+def build_team_dashboard(games: List[Any], team_query: str, gender: Optional[str] = None) -> Dict[str, Any]:
+    games = filter_games_by_gender(games, gender)
     players: Dict[str, Dict[str, Any]] = {}
     matched_games: List[Dict[str, Any]] = []
     game_snapshots: List[Dict[str, Any]] = []

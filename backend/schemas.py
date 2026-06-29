@@ -8,6 +8,44 @@ class GameSaveRequest(BaseModel):
     home_team_name: str = Field(..., min_length=1)
     away_team_name: Optional[str] = None
     results: Dict[str, Any]
+    fixture_id: Optional[str] = None
+    source_url: Optional[str] = None
+    provider: Optional[str] = None
+    gender: Optional[str] = None
+
+
+class Nbl1SyncRequest(BaseModel):
+    season_year: Optional[str] = None
+    max_imports: Optional[int] = Field(default=None, ge=1, le=500)
+
+
+class Nbl1SyncImportedGame(BaseModel):
+    id: int
+    fixture_id: str
+    game_date: str
+    home_team_name: str
+    away_team_name: Optional[str] = None
+    gender: Optional[str] = None
+    label: str
+
+
+class Nbl1SyncErrorItem(BaseModel):
+    fixture_id: str
+    label: str
+    error: str
+
+
+class Nbl1SyncResponse(BaseModel):
+    season_year: str
+    discovered: int
+    completed: int
+    pending: int
+    skipped_existing: int
+    imported_count: int
+    imported: List[Nbl1SyncImportedGame]
+    failed_count: int
+    errors: List[Nbl1SyncErrorItem]
+    has_more: bool = False
 
 
 class GameSummary(BaseModel):
@@ -17,6 +55,7 @@ class GameSummary(BaseModel):
     away_team_name: Optional[str] = None
     home_score: Optional[int] = None
     away_score: Optional[int] = None
+    gender: Optional[str] = None
     created_at: str
 
 
@@ -28,14 +67,37 @@ class GameUpdateRequest(BaseModel):
     game_date: str = Field(..., min_length=1)
     home_team_name: str = Field(..., min_length=1)
     away_team_name: Optional[str] = None
+    gender: Optional[str] = None
 
 
 class GameListResponse(BaseModel):
     games: List[GameSummary]
+    total: int
+    limit: int
+    offset: int
+
+
+class Nbl1SyncStartResponse(BaseModel):
+    started: bool
+    message: str
+
+
+class Nbl1SyncStatusResponse(BaseModel):
+    running: bool
+    progress: str
+    result: Optional[Nbl1SyncResponse] = None
+    error: Optional[str] = None
+
+
+class TeamOption(BaseModel):
+    name: str
+    gender: Optional[str] = None
+    label: str
 
 
 class TeamListResponse(BaseModel):
     teams: List[str]
+    options: List[TeamOption] = []
 
 
 class TeamRecord(BaseModel):

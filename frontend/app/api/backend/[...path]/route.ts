@@ -6,6 +6,9 @@ import {
   isPasswordProtectionEnabled,
 } from "../../../../lib/auth";
 
+export const maxDuration = 300;
+export const dynamic = "force-dynamic";
+
 async function proxyRequest(request: NextRequest, pathParts: string[]) {
   if (isPasswordProtectionEnabled()) {
     const cookieValue = request.cookies.get(AUTH_COOKIE_NAME)?.value;

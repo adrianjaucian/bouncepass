@@ -270,23 +270,36 @@ def fetch_fixture_payload(fixture_id: str) -> Dict[str, Any]:
     }
 
 
-def scrape_nbl1_game(url: str) -> Tuple[pd.DataFrame, pd.DataFrame, Dict[str, str]]:
-    normalized_url = normalize_nbl1_url(url)
-    html = _fetch_text(normalized_url)
-    page_meta = extract_page_metadata(normalized_url, html)
-    fixture_payload = fetch_fixture_payload(page_meta["fixture_id"])
+def scrape_nbl1_fixture(fixture_id: str) -> Tuple[pd.DataFrame, pd.DataFrame, Dict[str, str]]:
+    fixture_id = (fixture_id or "").strip()
+    if not re.fullmatch(r"[0-9a-f-]{36}", fixture_id, re.I):
+        raise Nbl1ScrapeError("Invalid NBL1 fixture ID")
 
+    fixture_payload = fetch_fixture_payload(fixture_id)
     home_df = pd.DataFrame(fixture_payload["home_rows"])
     away_df = pd.DataFrame(fixture_payload["away_rows"])
     if home_df.empty or away_df.empty:
         raise Nbl1ScrapeError("No player stats found for this game")
 
+    source_url = f"https://www.nbl1.com.au/games/{fixture_id}"
     meta = {
-        "fixture_id": page_meta["fixture_id"],
-        "home_team_name": page_meta["home_team_name"] or fixture_payload["home_team_name"],
-        "away_team_name": page_meta["away_team_name"] or fixture_payload["away_team_name"],
-        "game_date": page_meta["game_date"] or fixture_payload["game_date"],
-        "source_url": normalized_url,
+        "fixture_id": fixture_id,
+        "home_team_name": fixture_payload["home_team_name"],
+        "away_team_name": fixture_payload["away_team_name"],
+        "game_date": fixture_payload["game_date"],
+        "source_url": source_url,
         "provider": "nbl1",
     }
+    return home_df, away_df, meta
+
+
+def scrape_nbl1_game(url: str) -> Tuple[pd.DataFrame, pd.DataFrame, Dict[str, str]]:
+    normalized_url = normalize_nbl1_url(url)
+    html = _fetch_text(normalized_url)
+    page_meta = extract_page_metadata(normalized_url, html)
+    home_df, away_df, meta = scrape_nbl1_fixture(page_meta["fixture_id"])
+    meta["home_team_name"] = page_meta["home_team_name"] or meta["home_team_name"]
+    meta["away_team_name"] = page_meta["away_team_name"] or meta["away_team_name"]
+    meta["game_date"] = page_meta["game_date"] or meta["game_date"]
+    meta["source_url"] = normalized_url
     return home_df, away_df, meta
