@@ -2,7 +2,8 @@ import json
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
-from gender_utils import filter_games_by_gender
+from gender_utils import filter_games_by_gender, format_team_gender_short, normalize_gender
+from region_utils import filter_games_by_region, normalize_region
 from boxscore_normalize import get_player_name
 from stats_engine import parse_mp_to_minutes
 from team_dashboard import (
@@ -12,6 +13,7 @@ from team_dashboard import (
     get_usage_rate,
     shooting_pct,
 )
+from leader_eligibility import filter_leader_eligible_players
 from trend_series import build_trend_charts, build_trend_point
 
 MIN_MP_FOR_RATE_RANKS = 40.0
@@ -111,6 +113,7 @@ def _accumulate_player_row(
     game_date: str,
     team_name: str,
     opponent_name: Optional[str],
+    gender: Optional[str] = None,
 ) -> None:
     mp_mins = parse_mp_to_minutes(row.get("MP"))
     if mp_mins <= 0 and row.get("MP_mins") is not None:
@@ -150,8 +153,9 @@ def _accumulate_player_row(
     blk_pct = _get_weighted_pct(row, ["BLK%"]) if mp_mins > 0 else None
     has_bpm = "BPM" in row and row.get("BPM") is not None and str(row.get("BPM")).strip() != ""
 
-    bucket["teams"].add(team_name)
-    bucket["games"] += 1
+    bucket["teams"].add(format_team_gender_short(team_name, gender))
+    if mp_mins > 0:
+        bucket["games"] += 1
     bucket["pts"] += pts
     bucket["trb"] += trb
     bucket["ast"] += ast
@@ -199,6 +203,7 @@ def _accumulate_player_row(
             "game_id": game_id,
             "game_date": game_date,
             "team_name": team_name,
+            "team_label": format_team_gender_short(team_name, gender),
             "opponent": opponent_name,
             "mp_mins": round(mp_mins, 1),
             "pts": int(pts),
@@ -297,8 +302,13 @@ def _finalize_player_bucket(bucket: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def build_league_players(games: List[Any], gender: Optional[str] = None) -> Tuple[List[Dict[str, Any]], int]:
+def build_league_players(
+    games: List[Any],
+    gender: Optional[str] = None,
+    region: Optional[str] = None,
+) -> Tuple[List[Dict[str, Any]], int]:
     games = filter_games_by_gender(games, gender)
+    games = filter_games_by_region(games, region)
     players: Dict[str, Dict[str, Any]] = {}
 
     for game in games:
@@ -327,6 +337,7 @@ def build_league_players(games: List[Any], gender: Optional[str] = None) -> Tupl
                     game_date=game.game_date,
                     team_name=str(team_name).strip(),
                     opponent_name=str(opponent_name).strip() if opponent_name else None,
+                    gender=normalize_gender(getattr(game, "gender", None)),
                 )
 
     player_list = [_finalize_player_bucket(bucket) for bucket in players.values()]
@@ -387,10 +398,20 @@ def find_player_profile(players: List[Dict[str, Any]], query: str) -> Optional[D
     return sorted(matches, key=lambda player: (-player["games"], -player["mp_mins"]))[0]
 
 
-def build_league_leader_players(games: List[Any], gender: Optional[str] = None) -> Dict[str, Any]:
-    player_list, league_games = build_league_players(games, gender=gender)
+def build_league_leader_players(
+    games: List[Any],
+    gender: Optional[str] = None,
+    region: Optional[str] = None,
+) -> Dict[str, Any]:
+    player_list, league_games = build_league_players(games, gender=gender, region=region)
+    leader_players = filter_leader_eligible_players(
+        player_list,
+        games,
+        gender=gender,
+        region=region,
+    )
     slim_players = []
-    for player in player_list:
+    for player in leader_players:
         slim = {key: value for key, value in player.items() if key != "game_log"}
         slim_players.append(slim)
     return {
@@ -400,8 +421,13 @@ def build_league_leader_players(games: List[Any], gender: Optional[str] = None) 
     }
 
 
-def build_player_dashboard(games: List[Any], player_query: str, gender: Optional[str] = None) -> Dict[str, Any]:
-    player_list, league_games = build_league_players(games, gender=gender)
+def build_player_dashboard(
+    games: List[Any],
+    player_query: str,
+    gender: Optional[str] = None,
+    region: Optional[str] = None,
+) -> Dict[str, Any]:
+    player_list, league_games = build_league_players(games, gender=gender, region=region)
     profile = find_player_profile(player_list, player_query)
     if not profile:
         return {

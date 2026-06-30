@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "../lib/api";
-import { GENDER_OPTIONS } from "../lib/gender";
+import { GENDER_OPTIONS, REGION_OPTIONS } from "../lib/gender";
 
 export default function SaveGameForm({
   results,
@@ -9,6 +9,7 @@ export default function SaveGameForm({
   initialHomeTeamName = "",
   initialAwayTeamName = "",
   initialGender = "men",
+  initialRegion = "",
   initialFixtureId = "",
   initialSourceUrl = "",
   initialProvider = "",
@@ -18,13 +19,15 @@ export default function SaveGameForm({
   const [homeTeamName, setHomeTeamName] = useState(initialHomeTeamName || "");
   const [awayTeamName, setAwayTeamName] = useState(initialAwayTeamName || "");
   const [gender, setGender] = useState(initialGender || "men");
+  const [region, setRegion] = useState(initialRegion || "");
 
   useEffect(() => {
     if (initialGameDate) setGameDate(initialGameDate);
     if (initialHomeTeamName) setHomeTeamName(initialHomeTeamName);
     if (initialAwayTeamName) setAwayTeamName(initialAwayTeamName);
     if (initialGender) setGender(initialGender);
-  }, [initialGameDate, initialHomeTeamName, initialAwayTeamName, initialGender]);
+    if (initialRegion) setRegion(initialRegion);
+  }, [initialGameDate, initialHomeTeamName, initialAwayTeamName, initialGender, initialRegion]);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -54,6 +57,7 @@ export default function SaveGameForm({
         home_team_name: homeTeamName.trim(),
         away_team_name: hasAwayTeam ? awayTeamName.trim() : null,
         gender,
+        region: region || null,
         results,
       };
       if (initialFixtureId) payload.fixture_id = initialFixtureId;
@@ -86,6 +90,21 @@ export default function SaveGameForm({
             style={{ padding: '10px 12px', borderRadius: '6px', border: '1px solid #d0d7de', color: '#000', backgroundColor: '#fff' }}
           >
             {GENDER_OPTIONS.filter((option) => option.value).map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label style={{ display: 'grid', gap: '6px', color: '#000', fontSize: '14px' }}>
+          Region
+          <select
+            value={region}
+            onChange={(e) => setRegion(e.target.value)}
+            style={{ padding: '10px 12px', borderRadius: '6px', border: '1px solid #d0d7de', color: '#000', backgroundColor: '#fff' }}
+          >
+            <option value="">Unspecified</option>
+            {REGION_OPTIONS.filter((option) => option.value).map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>

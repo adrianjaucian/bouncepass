@@ -7,7 +7,7 @@ import ExportSavedGameButton from "../../components/ExportSavedGameButton";
 import SiteNav from "../../components/SiteNav";
 import api from "../../lib/api";
 import { formatSavedGameLabel } from "../../lib/gameResultsUtils";
-import { GENDER_OPTIONS, formatGenderLabel, genderBadgeStyle } from "../../lib/gender";
+import { GENDER_OPTIONS, REGION_OPTIONS, formatGenderLabel, formatRegionLabel, genderBadgeStyle, regionBadgeStyle } from "../../lib/gender";
 
 type SavedGameSummary = {
   id: number;
@@ -17,6 +17,7 @@ type SavedGameSummary = {
   home_score?: number | null;
   away_score?: number | null;
   gender?: string | null;
+  region?: string | null;
   created_at: string;
 };
 
@@ -26,6 +27,7 @@ export default function SavedGamesPage() {
   const [games, setGames] = useState<SavedGameSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [genderFilter, setGenderFilter] = useState("");
+  const [regionFilter, setRegionFilter] = useState("");
   const [teamSearch, setTeamSearch] = useState("");
   const [debouncedTeamSearch, setDebouncedTeamSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -53,6 +55,7 @@ export default function SavedGamesPage() {
           offset,
         };
         if (genderFilter) params.gender = genderFilter;
+        if (regionFilter) params.region = regionFilter;
         if (debouncedTeamSearch) params.team = debouncedTeamSearch;
 
         const res = await api.get("/games", { params });
@@ -72,7 +75,7 @@ export default function SavedGamesPage() {
         setLoadingMore(false);
       }
     },
-    [genderFilter, debouncedTeamSearch],
+    [genderFilter, regionFilter, debouncedTeamSearch],
   );
 
   useEffect(() => {
@@ -109,7 +112,7 @@ export default function SavedGamesPage() {
         <SiteNav />
 
         <main style={{ backgroundColor: "#fff", padding: "30px", borderRadius: "10px", boxShadow: "0 2px 10px rgba(0,0,0,0.1)" }}>
-          <div style={{ display: "flex", gap: "10px", marginBottom: "20px", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: "10px", marginBottom: "12px", flexWrap: "wrap" }}>
             {GENDER_OPTIONS.map((option) => (
               <button
                 key={option.value || "all"}
@@ -119,6 +122,27 @@ export default function SavedGamesPage() {
                   padding: "10px 16px",
                   backgroundColor: genderFilter === option.value ? "#3498db" : "#ecf0f1",
                   color: genderFilter === option.value ? "#fff" : "#2c3e50",
+                  border: "none",
+                  borderRadius: "6px",
+                  fontWeight: "bold",
+                  cursor: "pointer",
+                }}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ display: "flex", gap: "10px", marginBottom: "20px", flexWrap: "wrap" }}>
+            {REGION_OPTIONS.map((option) => (
+              <button
+                key={option.value || "all-regions"}
+                type="button"
+                onClick={() => setRegionFilter(option.value)}
+                style={{
+                  padding: "10px 16px",
+                  backgroundColor: regionFilter === option.value ? "#27ae60" : "#ecf0f1",
+                  color: regionFilter === option.value ? "#fff" : "#2c3e50",
                   border: "none",
                   borderRadius: "6px",
                   fontWeight: "bold",
@@ -211,19 +235,28 @@ export default function SavedGamesPage() {
                               variant: "list",
                             })}
                           </span>
-                          {game.gender && (
-                            <span
-                              style={{
-                                ...genderBadgeStyle(game.gender),
-                                fontSize: "11px",
-                                fontWeight: 700,
-                                padding: "3px 8px",
-                                borderRadius: "999px",
-                              }}
-                            >
-                              {formatGenderLabel(game.gender)}
-                            </span>
-                          )}
+                          <span
+                            style={{
+                              ...genderBadgeStyle(game.gender || ""),
+                              fontSize: "11px",
+                              fontWeight: 700,
+                              padding: "3px 8px",
+                              borderRadius: "999px",
+                            }}
+                          >
+                            {formatGenderLabel(game.gender || "")}
+                          </span>
+                          <span
+                            style={{
+                              ...regionBadgeStyle(game.region || ""),
+                              fontSize: "11px",
+                              fontWeight: 700,
+                              padding: "3px 8px",
+                              borderRadius: "999px",
+                            }}
+                          >
+                            {formatRegionLabel(game.region || "")}
+                          </span>
                         </div>
                         <div style={{ color: "#56616b", fontSize: "14px", marginTop: "4px" }}>
                           {game.game_date} · Saved {new Date(game.created_at).toLocaleString()}

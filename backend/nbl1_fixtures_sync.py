@@ -10,7 +10,8 @@ import pandas as pd
 from sqlalchemy.orm import Session
 
 from game_scores import scores_from_results
-from gender_utils import extract_gender_from_match
+from gender_utils import extract_gender_from_match, normalize_gender
+from region_utils import extract_region_from_match, normalize_region
 from models import SavedGame
 from nbl1_scraper import Nbl1ScrapeError, scrape_nbl1_fixture
 from stats_engine import generate_advanced_stats
@@ -118,6 +119,61 @@ def load_saved_fixture_ids(db: Session) -> Set[str]:
     return {row[0] for row in rows if row[0]}
 
 
+def _fixture_lookup(fixtures: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    lookup: Dict[str, Dict[str, Any]] = {}
+    for match in fixtures:
+        fixture_id = _match_fixture_id(match)
+        if fixture_id:
+            lookup[fixture_id] = match
+    return lookup
+
+
+def backfill_nbl1_metadata_from_fixtures(
+    db: Session,
+    fixtures: List[Dict[str, Any]],
+) -> int:
+    """Update gender/region on already-saved NBL1 games from fixture API data."""
+    lookup = _fixture_lookup(fixtures)
+    if not lookup:
+        return 0
+
+    games = (
+        db.query(SavedGame)
+        .filter(SavedGame.fixture_id.isnot(None))
+        .filter((SavedGame.gender.is_(None)) | (SavedGame.region.is_(None)))
+        .all()
+    )
+    if not games:
+        return 0
+
+    updated = 0
+    for game in games:
+        match = lookup.get(str(game.fixture_id))
+        if not match:
+            continue
+
+        gender = normalize_gender(extract_gender_from_match(match))
+        region = normalize_region(extract_region_from_match(match))
+        changed = False
+
+        if game.gender is None and gender:
+            game.gender = gender
+            changed = True
+        if game.region is None and region:
+            game.region = region
+            changed = True
+        if not game.provider:
+            game.provider = "nbl1"
+            changed = True
+
+        if changed:
+            updated += 1
+
+    if updated:
+        db.commit()
+    return updated
+
+
 def save_synced_game(
     db: Session,
     *,
@@ -128,6 +184,7 @@ def save_synced_game(
     fixture_id: str,
     source_url: str,
     gender: Optional[str] = None,
+    region: Optional[str] = None,
 ) -> SavedGame:
     record = SavedGame(
         game_date=game_date.strip(),
@@ -137,7 +194,8 @@ def save_synced_game(
         fixture_id=fixture_id,
         source_url=source_url,
         provider="nbl1",
-        gender=gender,
+        gender=normalize_gender(gender),
+        region=normalize_region(region),
     )
     record.home_score, record.away_score = scores_from_results(results)
     db.add(record)
@@ -192,6 +250,7 @@ def sync_nbl1_fixtures(
     max_imports: Optional[int] = None,
 ) -> Dict[str, Any]:
     year, fixtures = discover_nbl1_fixtures(season_year)
+    updated_metadata_count = backfill_nbl1_metadata_from_fixtures(db, fixtures)
     saved_ids = load_saved_fixture_ids(db)
 
     completed = [match for match in fixtures if _is_completed_match(match)]
@@ -209,7 +268,8 @@ def sync_nbl1_fixtures(
 
         home_team = (match.get("home_team") or {}).get("name") or ""
         away_team = (match.get("away_team") or {}).get("name") or ""
-        gender = extract_gender_from_match(match)
+        gender = normalize_gender(extract_gender_from_match(match))
+        region = normalize_region(extract_region_from_match(match))
         label = f"{home_team} vs {away_team}".strip(" vs")
 
         try:
@@ -223,6 +283,7 @@ def sync_nbl1_fixtures(
                 fixture_id=fixture_id,
                 source_url=meta.get("source_url") or build_fixture_game_url(fixture_id),
                 gender=gender,
+                region=region,
             )
             imported.append(
                 {
@@ -232,6 +293,7 @@ def sync_nbl1_fixtures(
                     "home_team_name": record.home_team_name,
                     "away_team_name": record.away_team_name,
                     "gender": record.gender,
+                    "region": record.region,
                     "label": label,
                 }
             )
@@ -251,6 +313,7 @@ def sync_nbl1_fixtures(
         "completed": len(completed),
         "pending": len(pending),
         "skipped_existing": skipped_existing,
+        "updated_metadata_count": updated_metadata_count,
         "imported_count": len(imported),
         "imported": imported,
         "failed_count": len(errors),

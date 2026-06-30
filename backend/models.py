@@ -18,6 +18,7 @@ class SavedGame(Base):
     source_url = Column(String, nullable=True)
     provider = Column(String, nullable=True)
     gender = Column(String, nullable=True, index=True)
+    region = Column(String, nullable=True, index=True)
     home_score = Column(Integer, nullable=True)
     away_score = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

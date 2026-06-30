@@ -143,14 +143,32 @@ function TeamSummary({ totals, title }) {
   );
 }
 
-export default function GameResultsView({ data, homeLabel = 'Home', awayLabel = 'Away', showTeamRoles = true }) {
+export default function GameResultsView({
+  data,
+  homeLabel = "Home",
+  awayLabel = "Away",
+  showTeamRoles = true,
+  competitionLabel = "",
+}) {
   if (!data) return null;
 
-  const homeTitle = showTeamRoles ? withTeamRole(homeLabel, 'Home') : homeLabel;
-  const awayTitle = showTeamRoles ? withTeamRole(awayLabel, 'Away') : awayLabel;
+  const homeTitle = showTeamRoles ? withTeamRole(homeLabel, "Home") : homeLabel;
+  const awayTitle = showTeamRoles ? withTeamRole(awayLabel, "Away") : awayLabel;
 
   return (
     <div>
+      {competitionLabel && (
+        <p
+          style={{
+            margin: "0 0 16px 0",
+            color: "#56616b",
+            fontSize: "14px",
+            fontWeight: 600,
+          }}
+        >
+          {competitionLabel}
+        </p>
+      )}
       {data.home && (
         <div>
           <TeamSummary totals={computeTeamTotals(data.home)} title={homeTitle} />

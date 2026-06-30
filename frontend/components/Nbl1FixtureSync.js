@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { syncApi } from "../lib/api";
 
 export default function Nbl1FixtureSync() {
-  const [seasonYear, setSeasonYear] = useState("");
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState("");
   const [result, setResult] = useState(null);
@@ -43,8 +42,7 @@ export default function Nbl1FixtureSync() {
     setProgress("Starting sync...");
 
     try {
-      const body = seasonYear.trim() ? { season_year: seasonYear.trim() } : {};
-      const res = await syncApi.post("/sync/nbl1-fixtures", body);
+      const res = await syncApi.post("/sync/nbl1-fixtures", {});
       if (!res.data?.started) {
         setError(res.data?.message || "Could not start sync.");
         setLoading(false);
@@ -83,23 +81,7 @@ export default function Nbl1FixtureSync() {
         . Sync runs in the background so you can keep browsing saved games and dashboards while it works.
       </p>
 
-      <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "flex-end", marginBottom: "16px" }}>
-        <div>
-          <label style={{ display: "block", fontWeight: 600, color: "#000", marginBottom: "6px" }}>Season year</label>
-          <input
-            type="text"
-            value={seasonYear}
-            onChange={(e) => setSeasonYear(e.target.value)}
-            placeholder="Current season"
-            style={{
-              padding: "10px 12px",
-              border: "1px solid #d0d7de",
-              borderRadius: "6px",
-              width: "160px",
-              color: "#000",
-            }}
-          />
-        </div>
+      <div style={{ marginBottom: "16px" }}>
         <button
           type="button"
           onClick={runSync}
@@ -114,7 +96,7 @@ export default function Nbl1FixtureSync() {
             cursor: loading ? "not-allowed" : "pointer",
           }}
         >
-          {loading ? "Syncing NBL1 games..." : "Sync NBL1 Fixtures"}
+          {loading ? "Syncing NBL1 current season fixtures..." : "Sync NBL1 Current Season Fixtures"}
         </button>
       </div>
 
@@ -151,6 +133,7 @@ export default function Nbl1FixtureSync() {
           <p style={{ margin: "0 0 4px 0" }}>Discovered: {result.discovered}</p>
           <p style={{ margin: "0 0 4px 0" }}>Completed: {result.completed}</p>
           <p style={{ margin: "0 0 4px 0" }}>Skipped (already saved): {result.skipped_existing}</p>
+          <p style={{ margin: "0 0 4px 0" }}>Updated gender/region: {result.updated_metadata_count ?? 0}</p>
           <p style={{ margin: "0 0 4px 0" }}>Imported: {result.imported_count}</p>
           <p style={{ margin: "0 0 12px 0" }}>Failed: {result.failed_count}</p>
 
@@ -161,7 +144,14 @@ export default function Nbl1FixtureSync() {
                 {result.imported.slice(-8).map((game) => (
                   <li key={game.fixture_id}>
                     {game.game_date} — {game.home_team_name} vs {game.away_team_name}
-                    {game.gender ? ` (${game.gender === "women" ? "Women" : "Men"})` : ""}
+                    {game.gender || game.region
+                      ? ` (${[
+                          game.gender === "women" ? "Women" : game.gender === "men" ? "Men" : "",
+                          game.region ? game.region.charAt(0).toUpperCase() + game.region.slice(1) : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")})`
+                      : ""}
                   </li>
                 ))}
               </ul>

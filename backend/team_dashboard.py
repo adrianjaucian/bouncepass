@@ -4,9 +4,11 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from boxscore_normalize import get_player_name, is_totals_row_name
 from stats_engine import GAME_MINUTES, estimate_possessions, parse_mp_to_minutes
+from leader_eligibility import player_meets_team_eligibility
 from trend_series import build_trend_charts, build_trend_point
 
-from gender_utils import filter_games_by_gender
+from gender_utils import collect_team_options, filter_games_by_gender, format_team_label, normalize_gender
+from region_utils import filter_games_by_region, format_region_label, normalize_region
 
 TREND_GAME_WINDOW = 5
 
@@ -197,8 +199,14 @@ def _aggregate_snapshots(snapshots: List[Dict[str, float]]) -> Dict[str, float]:
     return aggregate
 
 
-def build_team_dashboard(games: List[Any], team_query: str, gender: Optional[str] = None) -> Dict[str, Any]:
+def build_team_dashboard(
+    games: List[Any],
+    team_query: str,
+    gender: Optional[str] = None,
+    region: Optional[str] = None,
+) -> Dict[str, Any]:
     games = filter_games_by_gender(games, gender)
+    games = filter_games_by_region(games, region)
     players: Dict[str, Dict[str, Any]] = {}
     matched_games: List[Dict[str, Any]] = []
     game_snapshots: List[Dict[str, Any]] = []
@@ -299,7 +307,8 @@ def build_team_dashboard(games: List[Any], team_query: str, gender: Optional[str
                 game_fg3 = fg3 / fg3a
 
             bucket = players[player_name]
-            bucket["games"] += 1
+            if mp_mins > 0:
+                bucket["games"] += 1
             bucket["pts"] += pts
             bucket["trb"] += trb
             bucket["ast"] += ast
@@ -471,8 +480,20 @@ def build_team_dashboard(games: List[Any], team_query: str, gender: Optional[str
         )
         efficiency_trends = _efficiency_trends(recent_efficiency, prior_efficiency)
 
+    normalized_gender = normalize_gender(gender)
+    normalized_region = normalize_region(region)
+    team_games_played = len(matched_games)
+    leader_players = [
+        player
+        for player in player_list
+        if player_meets_team_eligibility(player["games"], team_games_played)
+    ]
+
     return {
         "team_name": resolved_team_name,
+        "team_label": format_team_label(resolved_team_name, normalized_gender, normalized_region),
+        "gender": normalized_gender,
+        "region": normalized_region,
         "query": team_query,
         "games_played": len(matched_games),
         "record": {
@@ -490,14 +511,15 @@ def build_team_dashboard(games: List[Any], team_query: str, gender: Optional[str
             "fta": int(season_aggregate["total_fta"]),
         },
         "leaders": {
-            "scorers": _top_leaders(player_list, "pts"),
-            "rebounders": _top_leaders(player_list, "trb"),
-            "assists": _top_leaders(player_list, "ast"),
-            "steals": _top_leaders(player_list, "stl"),
-            "blocks": _top_leaders(player_list, "blk"),
-            "usage": _top_usage_leaders(player_list),
+            "scorers": _top_leaders(leader_players, "pts"),
+            "rebounders": _top_leaders(leader_players, "trb"),
+            "assists": _top_leaders(leader_players, "ast"),
+            "steals": _top_leaders(leader_players, "stl"),
+            "blocks": _top_leaders(leader_players, "blk"),
+            "usage": _top_usage_leaders(leader_players),
         },
         "players": sorted(player_list, key=lambda item: (-item["pts"], item["player"].lower())),
+        "leader_players": sorted(leader_players, key=lambda item: (-item["pts"], item["player"].lower())),
         "games": sorted(matched_games, key=lambda item: item["game_date"], reverse=True),
         "trend_charts": build_trend_charts(trend_points),
     }
@@ -512,6 +534,111 @@ def _top_usage_leaders(players: List[Dict[str, Any]], limit: int = 5) -> List[Di
         players,
         key=lambda item: (-(item.get("usg_pct") or 0), item["player"].lower()),
     )[:limit]
+
+
+TEAM_LEADER_LIMIT = 5
+
+
+def _top_team_metric_leaders(
+    teams: List[Dict[str, Any]],
+    metric: str,
+    *,
+    higher_is_better: bool = True,
+    limit: int = TEAM_LEADER_LIMIT,
+) -> List[Dict[str, Any]]:
+    eligible = [
+        team
+        for team in teams
+        if team.get("efficiency", {}).get(metric) is not None
+    ]
+    return sorted(
+        eligible,
+        key=lambda team: (
+            team["efficiency"][metric] if higher_is_better else -team["efficiency"][metric],
+            team["team_label"].lower(),
+        ),
+        reverse=higher_is_better,
+    )[:limit]
+
+
+def _leader_entries(
+    teams: List[Dict[str, Any]],
+    metric: str,
+    *,
+    higher_is_better: bool = True,
+    limit: int = TEAM_LEADER_LIMIT,
+) -> List[Dict[str, Any]]:
+    leaders = _top_team_metric_leaders(
+        teams,
+        metric,
+        higher_is_better=higher_is_better,
+        limit=limit,
+    )
+    entries: List[Dict[str, Any]] = []
+    for team in leaders:
+        record = team.get("record") or {}
+        entries.append(
+            {
+                "team_name": team["team_name"],
+                "team_label": team["team_label"],
+                "gender": team.get("gender"),
+                "region": team.get("region"),
+                "games_played": team["games_played"],
+                "wins": int(record.get("wins", 0)),
+                "losses": int(record.get("losses", 0)),
+                "value": team["efficiency"][metric],
+            }
+        )
+    return entries
+
+
+def build_team_league_leaders(
+    games: List[Any],
+    gender: Optional[str] = None,
+    region: Optional[str] = None,
+) -> Dict[str, Any]:
+    filtered = filter_games_by_gender(games, gender)
+    filtered = filter_games_by_region(filtered, region)
+    options = collect_team_options(filtered, require_gender=True, require_region=True)
+
+    teams: List[Dict[str, Any]] = []
+    for option in options:
+        dashboard = build_team_dashboard(
+            filtered,
+            option["name"],
+            gender=option["gender"],
+            region=option["region"],
+        )
+        if dashboard["games_played"] == 0:
+            continue
+        teams.append(
+            {
+                "team_name": dashboard["team_name"],
+                "team_label": dashboard["team_label"],
+                "gender": dashboard.get("gender"),
+                "region": dashboard.get("region"),
+                "games_played": dashboard["games_played"],
+                "record": dashboard["record"],
+                "efficiency": dashboard["efficiency"],
+            }
+        )
+
+    return {
+        "league_games": len(filtered),
+        "league_teams": len(teams),
+        "efficiency": {
+            "ortg": _leader_entries(teams, "ortg"),
+            "drtg": _leader_entries(teams, "drtg", higher_is_better=False),
+            "net_rating": _leader_entries(teams, "net_rating"),
+            "possession_ortg": _leader_entries(teams, "possession_ortg"),
+            "possession_drtg": _leader_entries(teams, "possession_drtg", higher_is_better=False),
+        },
+        "shooting_pace": {
+            "ts_pct": _leader_entries(teams, "ts_pct"),
+            "efg_pct": _leader_entries(teams, "efg_pct"),
+            "pace": _leader_entries(teams, "pace"),
+        },
+    }
 
 
 def _scores_from_results(results: Dict[str, Any]) -> Tuple[Optional[float], Optional[float]]:

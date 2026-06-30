@@ -38,13 +38,15 @@ from schemas import (
     PlayerLeagueLeadersResponse,
     PlayerListResponse,
     TeamDashboardResponse,
+    TeamLeagueLeadersResponse,
     TeamListResponse,
 )
 from game_scores import scores_from_results
 from gender_utils import collect_team_options, filter_games_by_gender, normalize_gender
+from region_utils import filter_games_by_region, normalize_region
 from nbl1_sync_job import get_sync_status, start_sync_job
 from player_dashboard import build_league_leader_players, build_player_dashboard, collect_player_names
-from team_dashboard import build_team_dashboard
+from team_dashboard import build_team_dashboard, build_team_league_leaders
 from stats_engine import generate_advanced_stats
 
 load_dotenv()
@@ -127,6 +129,7 @@ def game_to_summary(game: SavedGame) -> GameSummary:
         home_score=home_score,
         away_score=away_score,
         gender=normalize_gender(game.gender),
+        region=normalize_region(game.region),
         created_at=game.created_at.isoformat(),
     )
 
@@ -145,6 +148,7 @@ def game_to_detail(game: SavedGame) -> GameDetail:
         home_score=home_score,
         away_score=away_score,
         gender=normalize_gender(game.gender),
+        region=normalize_region(game.region),
         created_at=game.created_at.isoformat(),
         results=results,
     )
@@ -304,6 +308,7 @@ def save_game(game_in: GameSaveRequest, db: Session = Depends(get_db)) -> GameDe
         source_url=(game_in.source_url or "").strip() or None,
         provider=(game_in.provider or "").strip() or None,
         gender=normalize_gender(game_in.gender),
+        region=normalize_region(game_in.region),
     )
     home_score, away_score = scores_from_results(game_in.results)
     record.home_score = home_score
@@ -338,6 +343,7 @@ def sync_nbl1_fixtures_status() -> Nbl1SyncStatusResponse:
 @app.get("/games", response_model=GameListResponse)
 def list_games(
     gender: Optional[str] = None,
+    region: Optional[str] = None,
     team: Optional[str] = None,
     limit: int = 100,
     offset: int = 0,
@@ -352,6 +358,10 @@ def list_games(
     normalized_gender = normalize_gender(gender)
     if normalized_gender:
         query = query.filter(SavedGame.gender == normalized_gender)
+
+    normalized_region = normalize_region(region)
+    if normalized_region:
+        query = query.filter(SavedGame.region == normalized_region)
 
     team_query = (team or "").strip().lower()
     if team_query:
@@ -379,10 +389,15 @@ def list_games(
 
 
 @app.get("/teams", response_model=TeamListResponse)
-def list_teams(gender: Optional[str] = None, db: Session = Depends(get_db)) -> TeamListResponse:
+def list_teams(
+    gender: Optional[str] = None,
+    region: Optional[str] = None,
+    db: Session = Depends(get_db),
+) -> TeamListResponse:
     games = db.query(SavedGame).all()
     filtered = filter_games_by_gender(games, gender)
-    options = collect_team_options(filtered)
+    filtered = filter_games_by_region(filtered, region)
+    options = collect_team_options(filtered, require_gender=True, require_region=True)
     return TeamListResponse(teams=[option["label"] for option in options], options=options)
 
 
@@ -390,30 +405,78 @@ def list_teams(gender: Optional[str] = None, db: Session = Depends(get_db)) -> T
 def team_dashboard(
     team_name: str,
     gender: Optional[str] = None,
+    region: Optional[str] = None,
     db: Session = Depends(get_db),
 ) -> TeamDashboardResponse:
     query = team_name.strip()
     if not query:
         raise HTTPException(status_code=400, detail="team_name is required")
 
+    normalized_gender = normalize_gender(gender)
+    if not normalized_gender:
+        raise HTTPException(status_code=400, detail="gender is required (men or women)")
+
+    normalized_region = normalize_region(region)
+    if not normalized_region:
+        raise HTTPException(
+            status_code=400,
+            detail="region is required (north, south, east, west, or central)",
+        )
+
     games = db.query(SavedGame).order_by(SavedGame.game_date.desc(), SavedGame.created_at.desc()).all()
-    dashboard = build_team_dashboard(games, query, gender=normalize_gender(gender))
+    dashboard = build_team_dashboard(
+        games,
+        query,
+        gender=normalized_gender,
+        region=normalized_region,
+    )
     if dashboard["games_played"] == 0:
-        raise HTTPException(status_code=404, detail=f"No saved games found for team '{query}'")
+        raise HTTPException(
+            status_code=404,
+            detail=f"No saved games found for {dashboard['team_label']}",
+        )
     return TeamDashboardResponse(**dashboard)
 
 
+@app.get("/teams/leaders", response_model=TeamLeagueLeadersResponse)
+def team_leaders(
+    gender: Optional[str] = None,
+    region: Optional[str] = None,
+    db: Session = Depends(get_db),
+) -> TeamLeagueLeadersResponse:
+    games = db.query(SavedGame).order_by(SavedGame.game_date.desc(), SavedGame.created_at.desc()).all()
+    payload = build_team_league_leaders(
+        games,
+        gender=normalize_gender(gender),
+        region=normalize_region(region),
+    )
+    return TeamLeagueLeadersResponse(**payload)
+
+
 @app.get("/players", response_model=PlayerListResponse)
-def list_players(gender: Optional[str] = None, db: Session = Depends(get_db)) -> PlayerListResponse:
+def list_players(
+    gender: Optional[str] = None,
+    region: Optional[str] = None,
+    db: Session = Depends(get_db),
+) -> PlayerListResponse:
     games = db.query(SavedGame).order_by(SavedGame.game_date.desc(), SavedGame.created_at.desc()).all()
     filtered = filter_games_by_gender(games, gender)
+    filtered = filter_games_by_region(filtered, region)
     return PlayerListResponse(players=collect_player_names(filtered))
 
 
 @app.get("/players/leaders", response_model=PlayerLeagueLeadersResponse)
-def player_leaders(gender: Optional[str] = None, db: Session = Depends(get_db)) -> PlayerLeagueLeadersResponse:
+def player_leaders(
+    gender: Optional[str] = None,
+    region: Optional[str] = None,
+    db: Session = Depends(get_db),
+) -> PlayerLeagueLeadersResponse:
     games = db.query(SavedGame).order_by(SavedGame.game_date.desc(), SavedGame.created_at.desc()).all()
-    payload = build_league_leader_players(games, gender=normalize_gender(gender))
+    payload = build_league_leader_players(
+        games,
+        gender=normalize_gender(gender),
+        region=normalize_region(region),
+    )
     return PlayerLeagueLeadersResponse(**payload)
 
 
@@ -421,6 +484,7 @@ def player_leaders(gender: Optional[str] = None, db: Session = Depends(get_db)) 
 def player_dashboard(
     player_name: str,
     gender: Optional[str] = None,
+    region: Optional[str] = None,
     db: Session = Depends(get_db),
 ) -> PlayerDashboardResponse:
     query = player_name.strip()
@@ -428,7 +492,12 @@ def player_dashboard(
         raise HTTPException(status_code=400, detail="player_name is required")
 
     games = db.query(SavedGame).order_by(SavedGame.game_date.desc(), SavedGame.created_at.desc()).all()
-    dashboard = build_player_dashboard(games, query, gender=normalize_gender(gender))
+    dashboard = build_player_dashboard(
+        games,
+        query,
+        gender=normalize_gender(gender),
+        region=normalize_region(region),
+    )
     if dashboard["games_played"] == 0:
         raise HTTPException(status_code=404, detail=f"No saved games found for player '{query}'")
     return PlayerDashboardResponse(**dashboard)
@@ -453,6 +522,8 @@ def update_game(game_id: int, game_in: GameUpdateRequest, db: Session = Depends(
     game.away_team_name = game_in.away_team_name.strip() if game_in.away_team_name else None
     if game_in.gender is not None:
         game.gender = normalize_gender(game_in.gender)
+    if game_in.region is not None:
+        game.region = normalize_region(game_in.region)
     db.commit()
     db.refresh(game)
 

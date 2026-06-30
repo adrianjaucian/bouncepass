@@ -12,6 +12,7 @@ class GameSaveRequest(BaseModel):
     source_url: Optional[str] = None
     provider: Optional[str] = None
     gender: Optional[str] = None
+    region: Optional[str] = None
 
 
 class Nbl1SyncRequest(BaseModel):
@@ -26,6 +27,7 @@ class Nbl1SyncImportedGame(BaseModel):
     home_team_name: str
     away_team_name: Optional[str] = None
     gender: Optional[str] = None
+    region: Optional[str] = None
     label: str
 
 
@@ -41,6 +43,7 @@ class Nbl1SyncResponse(BaseModel):
     completed: int
     pending: int
     skipped_existing: int
+    updated_metadata_count: int = 0
     imported_count: int
     imported: List[Nbl1SyncImportedGame]
     failed_count: int
@@ -56,6 +59,7 @@ class GameSummary(BaseModel):
     home_score: Optional[int] = None
     away_score: Optional[int] = None
     gender: Optional[str] = None
+    region: Optional[str] = None
     created_at: str
 
 
@@ -68,6 +72,7 @@ class GameUpdateRequest(BaseModel):
     home_team_name: str = Field(..., min_length=1)
     away_team_name: Optional[str] = None
     gender: Optional[str] = None
+    region: Optional[str] = None
 
 
 class GameListResponse(BaseModel):
@@ -92,6 +97,7 @@ class Nbl1SyncStatusResponse(BaseModel):
 class TeamOption(BaseModel):
     name: str
     gender: Optional[str] = None
+    region: Optional[str] = None
     label: str
 
 
@@ -186,6 +192,9 @@ class TeamDashboardLeaders(BaseModel):
 
 class TeamDashboardResponse(BaseModel):
     team_name: str
+    team_label: str
+    gender: Optional[str] = None
+    region: Optional[str] = None
     query: str
     games_played: int
     record: TeamRecord
@@ -194,8 +203,41 @@ class TeamDashboardResponse(BaseModel):
     totals: Dict[str, Any]
     leaders: TeamDashboardLeaders
     players: List[TeamDashboardPlayer]
+    leader_players: List[TeamDashboardPlayer] = []
     games: List[TeamDashboardGame]
     trend_charts: TrendCharts = TrendCharts()
+
+
+class TeamLeagueLeaderEntry(BaseModel):
+    team_name: str
+    team_label: str
+    gender: Optional[str] = None
+    region: Optional[str] = None
+    games_played: int
+    wins: int
+    losses: int
+    value: float
+
+
+class TeamEfficiencyLeaders(BaseModel):
+    ortg: List[TeamLeagueLeaderEntry] = []
+    drtg: List[TeamLeagueLeaderEntry] = []
+    net_rating: List[TeamLeagueLeaderEntry] = []
+    possession_ortg: List[TeamLeagueLeaderEntry] = []
+    possession_drtg: List[TeamLeagueLeaderEntry] = []
+
+
+class TeamShootingPaceLeaders(BaseModel):
+    ts_pct: List[TeamLeagueLeaderEntry] = []
+    efg_pct: List[TeamLeagueLeaderEntry] = []
+    pace: List[TeamLeagueLeaderEntry] = []
+
+
+class TeamLeagueLeadersResponse(BaseModel):
+    league_games: int
+    league_teams: int
+    efficiency: TeamEfficiencyLeaders
+    shooting_pace: TeamShootingPaceLeaders
 
 
 class StatRank(BaseModel):
@@ -255,6 +297,7 @@ class PlayerDashboardGame(BaseModel):
     game_id: int
     game_date: str
     team_name: str
+    team_label: Optional[str] = None
     opponent: Optional[str] = None
     mp_mins: float
     pts: int

@@ -8,6 +8,7 @@ import ExportResultsButton from "../../../components/ExportResultsButton";
 import GameResultsView from "../../../components/GameResultsView";
 import SiteNav from "../../../components/SiteNav";
 import api from "../../../lib/api";
+import { formatCompetitionLabel, formatGenderLabel, formatRegionLabel, genderBadgeStyle, regionBadgeStyle } from "../../../lib/gender";
 import { formatSavedGameLabel } from "../../../lib/gameResultsUtils";
 
 type SavedGameDetail = {
@@ -17,6 +18,8 @@ type SavedGameDetail = {
   away_team_name?: string | null;
   home_score?: number | null;
   away_score?: number | null;
+  gender?: string | null;
+  region?: string | null;
   created_at: string;
   results: { home?: unknown[]; away?: unknown[] };
 };
@@ -57,6 +60,34 @@ export default function SavedGameDetailPage() {
     <div style={{ minHeight: "100vh", backgroundColor: "#f8f9fa", fontFamily: "Arial, sans-serif" }}>
       <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "40px 20px" }}>
         <header style={{ textAlign: "center", marginBottom: "24px", backgroundColor: "#fff", padding: "30px", borderRadius: "10px", boxShadow: "0 2px 10px rgba(0,0,0,0.1)" }}>
+          <div style={{ display: "flex", justifyContent: "center", gap: "8px", marginBottom: "12px", flexWrap: "wrap" }}>
+            {game && (
+              <>
+                <span
+                  style={{
+                    ...genderBadgeStyle(game.gender || ""),
+                    fontSize: "13px",
+                    fontWeight: 700,
+                    padding: "6px 14px",
+                    borderRadius: "999px",
+                  }}
+                >
+                  {formatGenderLabel(game.gender || "")}
+                </span>
+                <span
+                  style={{
+                    ...regionBadgeStyle(game.region || ""),
+                    fontSize: "13px",
+                    fontWeight: 700,
+                    padding: "6px 14px",
+                    borderRadius: "999px",
+                  }}
+                >
+                  {formatRegionLabel(game.region || "")}
+                </span>
+              </>
+            )}
+          </div>
           <h1 style={{ color: "#2c3e50", margin: "0 0 10px 0", fontSize: "2.2em" }}>
             {game
               ? formatSavedGameLabel({
@@ -124,6 +155,11 @@ export default function SavedGameDetailPage() {
                 data={game.results}
                 homeLabel={game.home_team_name}
                 awayLabel={game.away_team_name || "Away"}
+                competitionLabel={
+                  game.gender || game.region
+                    ? `${formatCompetitionLabel(game.gender || "", game.region || "")} competition — men's and women's results are kept separate by region across the app.`
+                    : "Gender and region not set for this game. Edit the game to label it as men's or women's and pick a region."
+                }
               />
             </>
           )}

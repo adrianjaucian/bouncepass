@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import api from "../lib/api";
-import { formatGenderLabel } from "../lib/gender";
+import { formatCompetitionLabel } from "../lib/gender";
 import SeasonLeadersSection from "./SeasonLeadersSection";
 
-export default function PlayerLeagueLeaders({ gender = "" }) {
+export default function PlayerLeagueLeaders({ gender = "", region = "" }) {
   const [leaders, setLeaders] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -15,7 +15,9 @@ export default function PlayerLeagueLeaders({ gender = "" }) {
       setLoading(true);
       setError("");
       try {
-        const params = gender ? { gender } : {};
+        const params = {};
+        if (gender) params.gender = gender;
+        if (region) params.region = region;
         const res = await api.get("/players/leaders", { params });
         setLeaders(res.data);
       } catch (err) {
@@ -30,7 +32,7 @@ export default function PlayerLeagueLeaders({ gender = "" }) {
       }
     };
     loadLeaders();
-  }, [gender]);
+  }, [gender, region]);
 
   if (loading) {
     return <p style={{ color: "#56616b", margin: "0 0 24px 0" }}>Loading league leaders...</p>;
@@ -57,16 +59,17 @@ export default function PlayerLeagueLeaders({ gender = "" }) {
     return null;
   }
 
-  const genderLabel = gender ? ` ${formatGenderLabel(gender)}` : "";
+  const competitionLabel = formatCompetitionLabel(gender, region);
+  const titleSuffix = competitionLabel ? ` (${competitionLabel})` : "";
 
   return (
     <SeasonLeadersSection
       players={leaders.players}
-      title={`League Leaders${genderLabel}`}
+      title={`League Leaders${titleSuffix}`}
       showTeams
-      description={`Top${genderLabel ? ` ${formatGenderLabel(gender).toLowerCase()}` : ""} players across all teams from ${leaders.league_games} saved game${
+      description={`Top players across all teams from ${leaders.league_games} saved game${
         leaders.league_games === 1 ? "" : "s"
-      } (${leaders.league_players} players). Click a name to open their dashboard.`}
+      }${competitionLabel ? ` in ${competitionLabel}` : ""} (${leaders.league_players} players). Only players with at least 50% of their team's games played qualify. Click a name to open their dashboard.`}
     />
   );
 }

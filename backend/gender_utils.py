@@ -1,6 +1,8 @@
 import re
 from typing import Any, Dict, List, Optional
 
+from region_utils import format_team_competition_label, normalize_region
+
 VALID_GENDERS = {"men", "women"}
 
 
@@ -17,14 +19,19 @@ def normalize_gender(value: Optional[str]) -> Optional[str]:
     return None
 
 
-def format_team_label(name: str, gender: Optional[str]) -> str:
+def format_team_label(name: str, gender: Optional[str], region: Optional[str] = None) -> str:
+    return format_team_competition_label(name, gender=normalize_gender(gender), region=region)
+
+
+def format_team_gender_short(name: str, gender: Optional[str] = None) -> str:
     cleaned = (name or "").strip()
     if not cleaned:
         return ""
-    if gender == "men":
-        return f"{cleaned} (Men)"
-    if gender == "women":
-        return f"{cleaned} (Women)"
+    normalized = normalize_gender(gender)
+    if normalized == "women":
+        return f"{cleaned} (W)"
+    if normalized == "men":
+        return f"{cleaned} (M)"
     return cleaned
 
 
@@ -52,16 +59,25 @@ def filter_games_by_gender(games: List[Any], gender: Optional[str]) -> List[Any]
     return [game for game in games if normalize_gender(getattr(game, "gender", None)) == normalized]
 
 
-def collect_team_options(games: List[Any]) -> List[Dict[str, Optional[str]]]:
+def collect_team_options(
+    games: List[Any],
+    require_gender: bool = False,
+    require_region: bool = False,
+) -> List[Dict[str, Optional[str]]]:
     seen = set()
     options: List[Dict[str, Optional[str]]] = []
     for game in games:
         gender = normalize_gender(getattr(game, "gender", None))
+        region = normalize_region(getattr(game, "region", None))
+        if require_gender and not gender:
+            continue
+        if require_region and not region:
+            continue
         for name in (getattr(game, "home_team_name", None), getattr(game, "away_team_name", None)):
             if not name:
                 continue
             cleaned = str(name).strip()
-            key = (cleaned.lower(), gender or "")
+            key = (cleaned.lower(), gender or "", region or "")
             if key in seen:
                 continue
             seen.add(key)
@@ -69,7 +85,8 @@ def collect_team_options(games: List[Any]) -> List[Dict[str, Optional[str]]]:
                 {
                     "name": cleaned,
                     "gender": gender,
-                    "label": format_team_label(cleaned, gender),
+                    "region": region,
+                    "label": format_team_label(cleaned, gender, region),
                 }
             )
     return sorted(options, key=lambda item: item["label"].lower())

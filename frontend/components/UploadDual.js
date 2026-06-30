@@ -6,7 +6,7 @@ import GameResultsView from "./GameResultsView";
 import SaveGameForm from "./SaveGameForm";
 
 export default function UploadDual() {
-  const [uploadMode, setUploadMode] = useState("file"); // "file", "paste", or "url"
+  const [uploadMode, setUploadMode] = useState("url"); // "url", "file", or "paste"
   const [homeFile, setHomeFile] = useState(null);
   const [awayFile, setAwayFile] = useState(null);
   const [homeCSV, setHomeCSV] = useState("");
@@ -350,7 +350,7 @@ export default function UploadDual() {
     <div>
       <div style={{ marginBottom: '30px' }}>
         <h2 style={{ color: '#2c3e50', margin: '0 0 20px 0', fontSize: '1.8em' }}>
-          Upload Box Score CSV
+          Upload Box Score
         </h2>
         <div style={{ backgroundColor: '#e8f4fd', padding: '15px', borderRadius: '5px', marginBottom: '20px', border: '1px solid #bee5eb' }}>
           <h4 style={{ margin: '0 0 10px 0', color: '#000' }}>Supported Format:</h4>

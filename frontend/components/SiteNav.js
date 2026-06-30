@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 
 const NAV_ITEMS = [
-  { href: "/", label: "Upload & Calculate", color: "#3498db" },
+  { href: "/", label: "Home", color: "#3498db" },
   { href: "/saved-games", label: "Saved Games", color: "#2c3e50" },
   { href: "/team-dashboard", label: "Team Dashboard", color: "#9b59b6" },
   { href: "/player-dashboard", label: "Player Dashboard", color: "#e67e22" },

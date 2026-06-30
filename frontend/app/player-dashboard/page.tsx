@@ -1,165 +1,27 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
+import { FormEvent, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import PlayerComparison from "../../components/PlayerComparison";
+import PlayerDashboardDetail from "../../components/PlayerDashboardDetail";
 import PlayerLeagueLeaders from "../../components/PlayerLeagueLeaders";
 import SiteNav from "../../components/SiteNav";
-import TrendCharts from "../../components/TrendCharts";
 import api from "../../lib/api";
-import { GENDER_OPTIONS } from "../../lib/gender";
-
-type StatRank = { rank: number; of: number };
-
-type PlayerStats = {
-  player: string;
-  games: number;
-  mp_mins: number;
-  pts: number;
-  trb: number;
-  ast: number;
-  stl: number;
-  blk: number;
-  tov: number;
-  orb: number;
-  drb: number;
-  fg: number;
-  fga: number;
-  fg3: number;
-  fg3a: number;
-  ft: number;
-  fta: number;
-  pts_pg?: number | null;
-  trb_pg?: number | null;
-  ast_pg?: number | null;
-  stl_pg?: number | null;
-  blk_pg?: number | null;
-  tov_pg?: number | null;
-  ts_pct?: number | null;
-  efg_pct?: number | null;
-  fg3_pct?: number | null;
-  fg3par?: number | null;
-  ft_pct?: number | null;
-  ortg?: number | null;
-  drtg?: number | null;
-  usg_pct?: number | null;
-  bpm?: number | null;
-  ast_pct?: number | null;
-  trb_pct?: number | null;
-  stl_pct?: number | null;
-  blk_pct?: number | null;
-  tov_pct?: number | null;
-  orb_pct?: number | null;
-  drb_pct?: number | null;
-  ranks?: Record<string, StatRank>;
-};
-
-type PlayerGame = {
-  game_id: number;
-  game_date: string;
-  team_name: string;
-  opponent?: string | null;
-  mp_mins: number;
-  pts: number;
-  trb: number;
-  ast: number;
-  stl: number;
-  blk: number;
-  fg: number;
-  fga: number;
-  fg3: number;
-  fg3a: number;
-  ft: number;
-  fta: number;
-  tov: number;
-  ts_pct?: number | null;
-  efg_pct?: number | null;
-  usg_pct?: number | null;
-  ortg?: number | null;
-  drtg?: number | null;
-  bpm?: number | null;
-};
-
-type TrendPoint = {
-  game_date: string;
-  label: string;
-  pts?: number | null;
-  trb?: number | null;
-  ast?: number | null;
-  ts_pct?: number | null;
-  usg_pct?: number | null;
-  ortg?: number | null;
-  drtg?: number | null;
-};
+import { GENDER_OPTIONS, REGION_OPTIONS } from "../../lib/gender";
 
 type PlayerDashboard = {
   player_name: string;
   query: string;
   games_played: number;
   teams: string[];
-  stats: PlayerStats | null;
-  games: PlayerGame[];
-  trend_charts?: {
-    last_5: TrendPoint[];
-    last_10: TrendPoint[];
-    season: TrendPoint[];
-  };
+  stats: Record<string, any> | null;
+  games: Record<string, any>[];
+  trend_charts?: Record<string, any>;
   league_players: number;
   league_games: number;
 };
 
-const tableHeaderStyle: React.CSSProperties = {
-  padding: "10px",
-  color: "#000",
-  fontWeight: "bold",
-};
-
-function formatPercent(value?: number | null) {
-  return value == null ? "—" : `${(value * 100).toFixed(1)}%`;
-}
-
-function formatRating(value?: number | null) {
-  return value == null ? "—" : value.toFixed(1);
-}
-
-function formatRank(rank?: StatRank) {
-  if (!rank || !rank.of) return "—";
-  return `#${rank.rank} of ${rank.of}`;
-}
-
-function StatCard({
-  label,
-  value,
-  rank,
-  subtitle,
-}: {
-  label: string;
-  value: string;
-  rank?: StatRank;
-  subtitle?: string;
-}) {
-  return (
-    <div
-      style={{
-        flex: "1 1 160px",
-        backgroundColor: "#f4f8fb",
-        border: "1px solid #d6e4f0",
-        borderRadius: "10px",
-        padding: "16px",
-        textAlign: "center",
-      }}
-    >
-      <div style={{ color: "#56616b", fontSize: "13px", marginBottom: "6px" }}>{label}</div>
-      <div style={{ color: "#2c3e50", fontSize: "1.6em", fontWeight: "bold", lineHeight: 1.1 }}>{value}</div>
-      {rank && (
-        <div style={{ color: "#7f8c8d", fontSize: "12px", marginTop: "6px", fontWeight: 600 }}>
-          League {formatRank(rank)}
-        </div>
-      )}
-      {subtitle && <div style={{ color: "#95a5a6", fontSize: "12px", marginTop: "4px" }}>{subtitle}</div>}
-    </div>
-  );
-}
+const MAX_COMPARE_PLAYERS = 3;
 
 function PlayerDashboardContent() {
   const router = useRouter();
@@ -168,24 +30,35 @@ function PlayerDashboardContent() {
 
   const [players, setPlayers] = useState<string[]>([]);
   const [genderFilter, setGenderFilter] = useState("");
+  const [regionFilter, setRegionFilter] = useState("");
   const [search, setSearch] = useState(initialPlayer);
   const [selectedPlayer, setSelectedPlayer] = useState(initialPlayer);
   const [dashboard, setDashboard] = useState<PlayerDashboard | null>(null);
+  const [comparePlayers, setComparePlayers] = useState<string[]>([]);
+  const [compareDashboards, setCompareDashboards] = useState<PlayerDashboard[]>([]);
   const [loading, setLoading] = useState(false);
+  const [compareLoading, setCompareLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  const filterParams = useMemo(() => {
+    const params: Record<string, string> = {};
+    if (genderFilter) params.gender = genderFilter;
+    if (regionFilter) params.region = regionFilter;
+    return params;
+  }, [genderFilter, regionFilter]);
 
   useEffect(() => {
     const loadPlayers = async () => {
       try {
-        const params = genderFilter ? { gender: genderFilter } : {};
-        const res = await api.get("/players", { params });
+        const res = await api.get("/players", { params: filterParams });
         setPlayers(res.data?.players || []);
       } catch {
         setPlayers([]);
       }
     };
     loadPlayers();
-  }, [genderFilter]);
+  }, [filterParams]);
 
   useEffect(() => {
     const query = initialPlayer.trim();
@@ -193,6 +66,16 @@ function PlayerDashboardContent() {
     setSearch(query);
     setSelectedPlayer(query);
   }, [initialPlayer]);
+
+  const fetchDashboard = useCallback(
+    async (playerName: string) => {
+      const res = await api.get("/players/dashboard", {
+        params: { player_name: playerName.trim(), ...filterParams },
+      });
+      return res.data as PlayerDashboard;
+    },
+    [filterParams],
+  );
 
   useEffect(() => {
     const loadDashboard = async () => {
@@ -206,10 +89,8 @@ function PlayerDashboardContent() {
       setError("");
       setDashboard(null);
       try {
-        const params: { player_name: string; gender?: string } = { player_name: selectedPlayer.trim() };
-        if (genderFilter) params.gender = genderFilter;
-        const res = await api.get("/players/dashboard", { params });
-        setDashboard(res.data);
+        const data = await fetchDashboard(selectedPlayer);
+        setDashboard(data);
       } catch (err: any) {
         const message =
           err?.response?.data?.detail ||
@@ -222,24 +103,89 @@ function PlayerDashboardContent() {
       }
     };
     loadDashboard();
-  }, [selectedPlayer, genderFilter]);
+  }, [selectedPlayer, fetchDashboard]);
+
+  useEffect(() => {
+    const loadComparison = async () => {
+      if (comparePlayers.length < 2) {
+        setCompareDashboards([]);
+        return;
+      }
+
+      setCompareLoading(true);
+      try {
+        const results = await Promise.all(comparePlayers.map((name) => fetchDashboard(name)));
+        setCompareDashboards(results.filter((item) => item?.stats));
+      } catch {
+        setCompareDashboards([]);
+      } finally {
+        setCompareLoading(false);
+      }
+    };
+    loadComparison();
+  }, [comparePlayers, fetchDashboard]);
 
   const filteredPlayers = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (!query) return players.slice(0, 20);
+    if (!query) return players.slice(0, 15);
     return players.filter((name) => name.toLowerCase().includes(query)).slice(0, 20);
   }, [players, search]);
 
-  const handleSearchSubmit = (event: FormEvent) => {
-    event.preventDefault();
-    const next = search.trim();
+  const selectPlayer = (name: string) => {
+    const next = name.trim();
     if (!next) return;
+    setSearch(next);
     setSelectedPlayer(next);
+    setShowSuggestions(false);
     router.replace(`/player-dashboard?player=${encodeURIComponent(next)}`);
   };
 
-  const stats = dashboard?.stats;
-  const ranks = stats?.ranks || {};
+  const handleSearchSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    const query = search.trim();
+    if (!query) return;
+
+    const exact = players.find((name) => name.toLowerCase() === query.toLowerCase());
+    if (exact) {
+      selectPlayer(exact);
+      return;
+    }
+
+    if (filteredPlayers.length > 0) {
+      selectPlayer(filteredPlayers[0]);
+    }
+  };
+
+  const clearResults = () => {
+    setSearch("");
+    setSelectedPlayer("");
+    setDashboard(null);
+    setComparePlayers([]);
+    setCompareDashboards([]);
+    setError("");
+    setShowSuggestions(false);
+    router.replace("/player-dashboard");
+  };
+
+  const addToCompare = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setComparePlayers((current) => {
+      if (current.includes(trimmed)) return current;
+      if (current.length >= MAX_COMPARE_PLAYERS) return current;
+      return [...current, trimmed];
+    });
+  };
+
+  const removeFromCompare = (name: string) => {
+    setComparePlayers((current) => current.filter((player) => player !== name));
+  };
+
+  const hasResults = Boolean(selectedPlayer.trim() || comparePlayers.length > 0 || dashboard || compareDashboards.length > 0);
+  const canAddCurrentToCompare =
+    Boolean(dashboard?.player_name) &&
+    !comparePlayers.includes(dashboard.player_name) &&
+    comparePlayers.length < MAX_COMPARE_PLAYERS;
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#f8f9fa", fontFamily: "Arial, sans-serif" }}>
@@ -291,56 +237,217 @@ function PlayerDashboardContent() {
             ))}
           </div>
 
-          <form onSubmit={handleSearchSubmit} style={{ marginBottom: "24px" }}>
-            <label htmlFor="player-search" style={{ display: "block", marginBottom: "8px", color: "#2c3e50", fontWeight: "bold" }}>
-              Search players
-            </label>
-            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-              <input
-                id="player-search"
-                list="player-options"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Type a player name..."
-                style={{
-                  flex: "1 1 260px",
-                  padding: "12px 14px",
-                  borderRadius: "8px",
-                  border: "1px solid #d0d7de",
-                  fontSize: "14px",
-                  color: "#000",
-                }}
-              />
-              <datalist id="player-options">
-                {filteredPlayers.map((name) => (
-                  <option key={name} value={name} />
-                ))}
-              </datalist>
+          <div style={{ display: "flex", gap: "10px", marginBottom: "20px", flexWrap: "wrap" }}>
+            {REGION_OPTIONS.map((option) => (
               <button
-                type="submit"
+                key={option.value || "all-regions"}
+                type="button"
+                onClick={() => setRegionFilter(option.value)}
                 style={{
-                  padding: "12px 20px",
-                  backgroundColor: "#3498db",
-                  color: "#fff",
+                  padding: "8px 14px",
+                  backgroundColor: regionFilter === option.value ? "#27ae60" : "#ecf0f1",
+                  color: regionFilter === option.value ? "#fff" : "#2c3e50",
                   border: "none",
-                  borderRadius: "8px",
+                  borderRadius: "6px",
                   fontWeight: "bold",
                   cursor: "pointer",
                 }}
               >
-                View Player
+                {option.label}
               </button>
+            ))}
+          </div>
+
+          <form onSubmit={handleSearchSubmit} style={{ marginBottom: "16px" }}>
+            <label htmlFor="player-search" style={{ display: "block", marginBottom: "8px", color: "#2c3e50", fontWeight: "bold" }}>
+              Search players
+            </label>
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "flex-start" }}>
+              <div style={{ position: "relative", flex: "1 1 260px" }}>
+                <input
+                  id="player-search"
+                  value={search}
+                  onChange={(event) => {
+                    setSearch(event.target.value);
+                    setShowSuggestions(true);
+                  }}
+                  onFocus={() => setShowSuggestions(true)}
+                  onBlur={() => {
+                    window.setTimeout(() => setShowSuggestions(false), 150);
+                  }}
+                  placeholder="Type a player name..."
+                  autoComplete="off"
+                  style={{
+                    width: "100%",
+                    padding: "12px 14px",
+                    borderRadius: showSuggestions && filteredPlayers.length > 0 ? "8px 8px 0 0" : "8px",
+                    border: "1px solid #d0d7de",
+                    fontSize: "14px",
+                    color: "#000",
+                    boxSizing: "border-box",
+                  }}
+                />
+                {showSuggestions && filteredPlayers.length > 0 && (
+                  <ul
+                    style={{
+                      position: "absolute",
+                      top: "100%",
+                      left: 0,
+                      right: 0,
+                      margin: 0,
+                      padding: 0,
+                      listStyle: "none",
+                      backgroundColor: "#fff",
+                      border: "1px solid #d0d7de",
+                      borderTop: "none",
+                      borderRadius: "0 0 8px 8px",
+                      boxShadow: "0 8px 20px rgba(0,0,0,0.08)",
+                      maxHeight: "240px",
+                      overflowY: "auto",
+                      zIndex: 20,
+                    }}
+                  >
+                    {filteredPlayers.map((name) => (
+                      <li key={name}>
+                        <button
+                          type="button"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => selectPlayer(name)}
+                          style={{
+                            width: "100%",
+                            textAlign: "left",
+                            padding: "10px 14px",
+                            border: "none",
+                            borderBottom: "1px solid #f0f3f6",
+                            backgroundColor: selectedPlayer === name ? "#ebf5fb" : "#fff",
+                            color: "#2c3e50",
+                            cursor: "pointer",
+                            fontSize: "14px",
+                          }}
+                        >
+                          {name}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => dashboard?.player_name && addToCompare(dashboard.player_name)}
+                disabled={!canAddCurrentToCompare}
+                style={{
+                  padding: "12px 20px",
+                  backgroundColor: canAddCurrentToCompare ? "#8e44ad" : "#bdc3c7",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "8px",
+                  fontWeight: "bold",
+                  cursor: canAddCurrentToCompare ? "pointer" : "not-allowed",
+                }}
+              >
+                {canAddCurrentToCompare ? "Add to compare" : "Compare full (3 max)"}
+              </button>
+              {hasResults && (
+                <button
+                  type="button"
+                  onClick={clearResults}
+                  style={{
+                    padding: "12px 20px",
+                    backgroundColor: "#ecf0f1",
+                    color: "#2c3e50",
+                    border: "1px solid #d0d7de",
+                    borderRadius: "8px",
+                    fontWeight: "bold",
+                    cursor: "pointer",
+                  }}
+                >
+                  Clear results
+                </button>
+              )}
             </div>
             {players.length > 0 && (
               <p style={{ margin: "10px 0 0 0", color: "#7f8c8d", fontSize: "13px" }}>
-                {players.length} player{players.length === 1 ? "" : "s"} in league database
+                {players.length} player{players.length === 1 ? "" : "s"} in league database · select a name to load instantly
               </p>
             )}
           </form>
 
-          <PlayerLeagueLeaders gender={genderFilter} />
+          {comparePlayers.length > 0 && (
+            <div
+              style={{
+                marginBottom: "24px",
+                padding: "14px 16px",
+                backgroundColor: "#f9f4fd",
+                border: "1px solid #e8d4f4",
+                borderRadius: "8px",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
+                <p style={{ margin: 0, color: "#56616b", fontSize: "14px" }}>
+                  Comparing {comparePlayers.length} of {MAX_COMPARE_PLAYERS} players
+                  {comparePlayers.length < 2 ? " — add at least one more to see side-by-side stats" : ""}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setComparePlayers([]);
+                    setCompareDashboards([]);
+                  }}
+                  style={{
+                    padding: "6px 12px",
+                    backgroundColor: "#fff",
+                    color: "#c0392b",
+                    border: "1px solid #e8d4f4",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                  }}
+                >
+                  Clear comparison
+                </button>
+              </div>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "10px" }}>
+                {comparePlayers.map((name) => (
+                  <span
+                    key={name}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "6px 10px",
+                      backgroundColor: "#fff",
+                      border: "1px solid #e8d4f4",
+                      borderRadius: "999px",
+                      fontSize: "13px",
+                      color: "#2c3e50",
+                    }}
+                  >
+                    {name}
+                    <button
+                      type="button"
+                      onClick={() => removeFromCompare(name)}
+                      aria-label={`Remove ${name} from comparison`}
+                      style={{
+                        border: "none",
+                        background: "transparent",
+                        color: "#c0392b",
+                        cursor: "pointer",
+                        fontWeight: "bold",
+                        padding: 0,
+                      }}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
-          {loading && <p style={{ color: "#56616b" }}>Loading player dashboard...</p>}
+          {(loading || compareLoading) && <p style={{ color: "#56616b", marginBottom: "24px" }}>Loading player data...</p>}
+
           {error && (
             <div
               style={{
@@ -349,140 +456,28 @@ function PlayerDashboardContent() {
                 padding: "14px",
                 borderRadius: "8px",
                 border: "1px solid #f5c6cb",
+                marginBottom: "24px",
               }}
             >
               {error}
             </div>
           )}
 
-          {dashboard && stats && !loading && (
-            <>
-              <div style={{ marginBottom: "28px" }}>
-                <h2 style={{ margin: "0 0 8px 0", color: "#2c3e50" }}>{dashboard.player_name}</h2>
-                <p style={{ margin: 0, color: "#56616b" }}>
-                  {dashboard.games_played} game{dashboard.games_played === 1 ? "" : "s"} · {stats.mp_mins.toFixed(1)} min ·{" "}
-                  {dashboard.teams.join(", ") || "—"}
-                </p>
-                <p style={{ margin: "8px 0 0 0", color: "#7f8c8d", fontSize: "13px" }}>
-                  Ranked against {dashboard.league_players} players from {dashboard.league_games} saved game
-                  {dashboard.league_games === 1 ? "" : "s"}
-                </p>
-              </div>
-
-              <section style={{ marginBottom: "32px" }}>
-                <h3 style={{ margin: "0 0 16px 0", color: "#2c3e50" }}>Season Totals</h3>
-                <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-                  <StatCard label="PTS" value={String(stats.pts)} rank={ranks.pts} />
-                  <StatCard label="REB" value={String(stats.trb)} rank={ranks.trb} />
-                  <StatCard label="AST" value={String(stats.ast)} rank={ranks.ast} />
-                  <StatCard label="STL" value={String(stats.stl)} rank={ranks.stl} />
-                  <StatCard label="BLK" value={String(stats.blk)} rank={ranks.blk} />
-                  <StatCard label="MP" value={stats.mp_mins.toFixed(1)} rank={ranks.mp_mins} />
-                </div>
-              </section>
-
-              <section style={{ marginBottom: "32px" }}>
-                <h3 style={{ margin: "0 0 16px 0", color: "#2c3e50" }}>Per Game Averages</h3>
-                <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-                  <StatCard label="PTS/G" value={formatRating(stats.pts_pg)} rank={ranks.pts_pg} />
-                  <StatCard label="REB/G" value={formatRating(stats.trb_pg)} rank={ranks.trb_pg} />
-                  <StatCard label="AST/G" value={formatRating(stats.ast_pg)} rank={ranks.ast_pg} />
-                  <StatCard label="STL/G" value={formatRating(stats.stl_pg)} rank={ranks.stl_pg} />
-                  <StatCard label="BLK/G" value={formatRating(stats.blk_pg)} rank={ranks.blk_pg} />
-                  <StatCard label="TOV/G" value={formatRating(stats.tov_pg)} />
-                </div>
-              </section>
-
-              <section style={{ marginBottom: "32px" }}>
-                <h3 style={{ margin: "0 0 16px 0", color: "#2c3e50" }}>Shooting</h3>
-                <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-                  <StatCard label="TS%" value={formatPercent(stats.ts_pct)} rank={ranks.ts_pct} />
-                  <StatCard label="eFG%" value={formatPercent(stats.efg_pct)} rank={ranks.efg_pct} />
-                  <StatCard label="3P%" value={formatPercent(stats.fg3_pct)} rank={ranks.fg3_pct} />
-                  <StatCard label="3PAr" value={formatPercent(stats.fg3par)} rank={ranks.fg3par} />
-                  <StatCard label="FT%" value={formatPercent(stats.ft_pct)} />
-                  <StatCard
-                    label="FG"
-                    value={`${stats.fg}/${stats.fga}`}
-                    subtitle={`3P ${stats.fg3}-${stats.fg3a} · FT ${stats.ft}-${stats.fta}`}
-                  />
-                </div>
-              </section>
-
-              <section style={{ marginBottom: "32px" }}>
-                <h3 style={{ margin: "0 0 16px 0", color: "#2c3e50" }}>Advanced Metrics</h3>
-                <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-                  <StatCard label="ORtg" value={formatRating(stats.ortg)} rank={ranks.ortg} />
-                  <StatCard label="DRtg" value={formatRating(stats.drtg)} rank={ranks.drtg} />
-                  <StatCard label="USG%" value={stats.usg_pct == null ? "—" : `${stats.usg_pct.toFixed(1)}%`} rank={ranks.usg_pct} />
-                  <StatCard label="BPM" value={formatRating(stats.bpm)} rank={ranks.bpm} />
-                  <StatCard label="AST%" value={stats.ast_pct == null ? "—" : `${stats.ast_pct.toFixed(1)}%`} />
-                  <StatCard label="TRB%" value={stats.trb_pct == null ? "—" : `${stats.trb_pct.toFixed(1)}%`} />
-                  <StatCard label="STL%" value={stats.stl_pct == null ? "—" : `${stats.stl_pct.toFixed(1)}%`} />
-                  <StatCard label="BLK%" value={stats.blk_pct == null ? "—" : `${stats.blk_pct.toFixed(1)}%`} />
-                  <StatCard label="TOV%" value={stats.tov_pct == null ? "—" : `${stats.tov_pct.toFixed(1)}%`} />
-                  <StatCard label="ORB%" value={stats.orb_pct == null ? "—" : `${stats.orb_pct.toFixed(1)}%`} />
-                  <StatCard label="DRB%" value={stats.drb_pct == null ? "—" : `${stats.drb_pct.toFixed(1)}%`} />
-                </div>
-              </section>
-
-              <TrendCharts
-                trendCharts={dashboard.trend_charts}
-                title="Player Performance Trends"
-                description="Game-by-game lines for scoring, rebounding, playmaking, efficiency, usage, BPM, shot profile, and rebound/block rates. Hover a point for game details. Oldest game left, most recent right."
-              />
-
-              <section>
-                <h3 style={{ margin: "0 0 16px 0", color: "#2c3e50" }}>Game Log</h3>
-                <div style={{ overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px", border: "1px solid #e1e8ed" }}>
-                    <thead>
-                      <tr style={{ backgroundColor: "#f1f6f9" }}>
-                        <th style={{ ...tableHeaderStyle, textAlign: "left" }}>Date</th>
-                        <th style={{ ...tableHeaderStyle, textAlign: "left" }}>Team</th>
-                        <th style={{ ...tableHeaderStyle, textAlign: "left" }}>Opponent</th>
-                        <th style={tableHeaderStyle}>MP</th>
-                        <th style={tableHeaderStyle}>PTS</th>
-                        <th style={tableHeaderStyle}>REB</th>
-                        <th style={tableHeaderStyle}>AST</th>
-                        <th style={tableHeaderStyle}>TS%</th>
-                        <th style={tableHeaderStyle}>USG%</th>
-                        <th style={tableHeaderStyle}>BPM</th>
-                        <th style={{ ...tableHeaderStyle, textAlign: "left" }}>Box Score</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {dashboard.games.map((game, index) => (
-                        <tr key={`${game.game_id}-${index}`} style={{ backgroundColor: index % 2 === 0 ? "#fff" : "#fafbfc" }}>
-                          <td style={{ padding: "10px", color: "#000" }}>{game.game_date}</td>
-                          <td style={{ padding: "10px", color: "#000" }}>{game.team_name}</td>
-                          <td style={{ padding: "10px", color: "#000" }}>{game.opponent || "—"}</td>
-                          <td style={{ padding: "10px", textAlign: "center", color: "#000" }}>{game.mp_mins.toFixed(1)}</td>
-                          <td style={{ padding: "10px", textAlign: "center", color: "#000", fontWeight: "bold" }}>{game.pts}</td>
-                          <td style={{ padding: "10px", textAlign: "center", color: "#000" }}>{game.trb}</td>
-                          <td style={{ padding: "10px", textAlign: "center", color: "#000" }}>{game.ast}</td>
-                          <td style={{ padding: "10px", textAlign: "center", color: "#000" }}>{formatPercent(game.ts_pct)}</td>
-                          <td style={{ padding: "10px", textAlign: "center", color: "#000" }}>
-                            {game.usg_pct == null ? "—" : `${game.usg_pct.toFixed(1)}%`}
-                          </td>
-                          <td style={{ padding: "10px", textAlign: "center", color: "#000" }}>{formatRating(game.bpm)}</td>
-                          <td style={{ padding: "10px" }}>
-                            <Link href={`/saved-games/${game.game_id}`} style={{ color: "#3498db" }}>
-                              View game
-                            </Link>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-            </>
+          {comparePlayers.length >= 2 && compareDashboards.length >= 2 && !compareLoading && (
+            <PlayerComparison dashboards={compareDashboards} onRemovePlayer={removeFromCompare} />
           )}
 
-          {!selectedPlayer.trim() && !loading && !error && (
-            <p style={{ color: "#7f8c8d", margin: 0 }}>Search for a player to view their dashboard.</p>
+          {dashboard && !loading && (
+            <div style={{ marginBottom: "32px", paddingBottom: "8px", borderBottom: comparePlayers.length >= 2 ? "1px solid #e1e8ed" : "none" }}>
+              <PlayerDashboardDetail dashboard={dashboard} />
+            </div>
           )}
+
+          {!selectedPlayer.trim() && !loading && !error && !comparePlayers.length && (
+            <p style={{ color: "#7f8c8d", margin: "0 0 24px 0" }}>Search for a player to view their dashboard.</p>
+          )}
+
+          <PlayerLeagueLeaders gender={genderFilter} region={regionFilter} />
         </main>
       </div>
     </div>

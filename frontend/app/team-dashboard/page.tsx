@@ -4,14 +4,16 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import SiteNav from "../../components/SiteNav";
 import SeasonLeadersSection from "../../components/SeasonLeadersSection";
+import TeamLeagueLeaders from "../../components/TeamLeagueLeaders";
 import TrendCharts, { TEAM_FEATURED_TREND_STAT, TEAM_TREND_STATS } from "../../components/TrendCharts";
 import api from "../../lib/api";
 import { getMetricAnchor } from "../../lib/metricDefinitions";
-import { GENDER_OPTIONS, decodeTeamOption, encodeTeamOption } from "../../lib/gender";
+import { GENDER_TABS, REGION_OPTIONS, decodeTeamOption, encodeTeamOption, formatGenderLabel, formatRegionLabel, genderBadgeStyle, regionBadgeStyle } from "../../lib/gender";
 
 type TeamOption = {
   name: string;
   gender?: string | null;
+  region?: string | null;
   label: string;
 };
 
@@ -41,6 +43,9 @@ type DashboardPlayer = {
 
 type TeamDashboard = {
   team_name: string;
+  team_label: string;
+  gender?: string | null;
+  region?: string | null;
   query: string;
   games_played: number;
   record: { wins: number; losses: number };
@@ -66,6 +71,7 @@ type TeamDashboard = {
     usage: DashboardPlayer[];
   };
   players: DashboardPlayer[];
+  leader_players?: DashboardPlayer[];
   games: {
     id: number;
     game_date: string;
@@ -94,7 +100,7 @@ type TrendPoint = {
   drtg?: number | null;
 };
 
-const DEFAULT_TEAM = "Hornsby Ku-ring-gai Spiders";
+const BLANK_TEAM_SELECTION = "";
 
 const tableHeaderStyle: React.CSSProperties = {
   padding: "10px",
@@ -169,44 +175,69 @@ function MetricCard({
 
 export default function TeamDashboardPage() {
   const [teamOptions, setTeamOptions] = useState<TeamOption[]>([]);
-  const [teamSelection, setTeamSelection] = useState(encodeTeamOption(DEFAULT_TEAM, "men"));
-  const [genderFilter, setGenderFilter] = useState("");
+  const [teamSelection, setTeamSelection] = useState(BLANK_TEAM_SELECTION);
+  const [genderFilter, setGenderFilter] = useState("men");
+  const [regionFilter, setRegionFilter] = useState("");
   const [dashboard, setDashboard] = useState<TeamDashboard | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const selectedTeam = decodeTeamOption(teamSelection);
+  const hasTeamSelected = Boolean(selectedTeam.name.trim() && selectedTeam.gender && selectedTeam.region);
 
   useEffect(() => {
     const loadTeams = async () => {
       try {
-        const params = genderFilter ? { gender: genderFilter } : {};
-        const res = await api.get("/teams", { params });
+        const res = await api.get("/teams", {
+          params: { gender: genderFilter, region: regionFilter },
+        });
         const options: TeamOption[] = res.data?.options || [];
         setTeamOptions(options);
-        const spiderMatch = options.find((option) => /spider/i.test(option.name));
-        if (spiderMatch) {
-          setTeamSelection(encodeTeamOption(spiderMatch.name, spiderMatch.gender || ""));
-        } else if (options.length > 0) {
-          setTeamSelection(encodeTeamOption(options[0].name, options[0].gender || ""));
+
+        if (!teamSelection) {
+          return;
+        }
+
+        const current = decodeTeamOption(teamSelection);
+        if (!current.name.trim()) {
+          return;
+        }
+
+        const stillValid = options.some(
+          (option) =>
+            option.name === current.name &&
+            option.gender === current.gender &&
+            option.region === current.region,
+        );
+        if (!stillValid) {
+          setTeamSelection(BLANK_TEAM_SELECTION);
         }
       } catch {
         setTeamOptions([]);
       }
     };
     loadTeams();
-  }, [genderFilter]);
+  }, [genderFilter, regionFilter]);
 
   useEffect(() => {
     const loadDashboard = async () => {
-      if (!selectedTeam.name.trim()) return;
+      if (!hasTeamSelected) {
+        setDashboard(null);
+        setLoading(false);
+        setError("");
+        return;
+      }
       setLoading(true);
       setError("");
       setDashboard(null);
       try {
-        const params: { team_name: string; gender?: string } = { team_name: selectedTeam.name.trim() };
-        if (selectedTeam.gender) params.gender = selectedTeam.gender;
-        const res = await api.get("/teams/dashboard", { params });
+        const res = await api.get("/teams/dashboard", {
+          params: {
+            team_name: selectedTeam.name.trim(),
+            gender: selectedTeam.gender,
+            region: selectedTeam.region,
+          },
+        });
         setDashboard(res.data);
       } catch (err: any) {
         const message =
@@ -220,7 +251,20 @@ export default function TeamDashboardPage() {
       }
     };
     loadDashboard();
-  }, [teamSelection]);
+  }, [teamSelection, hasTeamSelected, selectedTeam.name, selectedTeam.gender, selectedTeam.region]);
+
+  const handleSelectTeamFromLeaders = (team: {
+    team_name: string;
+    gender?: string | null;
+    region?: string | null;
+  }) => {
+    if (!team.team_name || !team.gender || !team.region) return;
+    if (team.gender === "men" || team.gender === "women") {
+      setGenderFilter(team.gender);
+    }
+    setRegionFilter(team.region || "");
+    setTeamSelection(encodeTeamOption(team.team_name, team.gender, team.region));
+  };
 
   const formatRating = (value?: number | null) => (value == null ? "—" : value.toFixed(1));
   const formatPercent = (value?: number | null) => (value == null ? "—" : `${(value * 100).toFixed(1)}%`);
@@ -241,7 +285,7 @@ export default function TeamDashboardPage() {
         >
           <h1 style={{ color: "#2c3e50", margin: "0 0 10px 0", fontSize: "2.2em" }}>Team Dashboard</h1>
           <p style={{ color: "#7f8c8d", margin: 0 }}>
-            Season insights aggregated from your saved box scores
+            Season leaders across the league, or drill into one men&apos;s or women&apos;s team in a specific NBL1 region
           </p>
         </header>
 
@@ -257,15 +301,35 @@ export default function TeamDashboardPage() {
         >
           <div style={{ marginBottom: "24px", display: "grid", gap: "16px", maxWidth: "520px" }}>
             <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-              {GENDER_OPTIONS.map((option) => (
+              {GENDER_TABS.map((option) => (
                 <button
-                  key={option.value || "all"}
+                  key={option.value}
                   type="button"
                   onClick={() => setGenderFilter(option.value)}
                   style={{
                     padding: "8px 14px",
                     backgroundColor: genderFilter === option.value ? "#3498db" : "#ecf0f1",
                     color: genderFilter === option.value ? "#fff" : "#2c3e50",
+                    border: "none",
+                    borderRadius: "6px",
+                    fontWeight: "bold",
+                    cursor: "pointer",
+                  }}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              {REGION_OPTIONS.map((option) => (
+                <button
+                  key={option.value || "all"}
+                  type="button"
+                  onClick={() => setRegionFilter(option.value)}
+                  style={{
+                    padding: "8px 14px",
+                    backgroundColor: regionFilter === option.value ? "#27ae60" : "#ecf0f1",
+                    color: regionFilter === option.value ? "#fff" : "#2c3e50",
                     border: "none",
                     borderRadius: "6px",
                     fontWeight: "bold",
@@ -289,9 +353,12 @@ export default function TeamDashboardPage() {
                   backgroundColor: "#fff",
                 }}
               >
-                {teamOptions.length === 0 && <option value={teamSelection}>{selectedTeam.name}</option>}
+                <option value={BLANK_TEAM_SELECTION}>Season Leaders</option>
                 {teamOptions.map((option) => (
-                  <option key={encodeTeamOption(option.name, option.gender || "")} value={encodeTeamOption(option.name, option.gender || "")}>
+                  <option
+                    key={encodeTeamOption(option.name, option.gender || genderFilter, option.region || regionFilter)}
+                    value={encodeTeamOption(option.name, option.gender || genderFilter, option.region || regionFilter)}
+                  >
                     {option.label}
                   </option>
                 ))}
@@ -299,8 +366,16 @@ export default function TeamDashboardPage() {
             </label>
           </div>
 
-          {loading && <p style={{ color: "#56616b" }}>Loading dashboard...</p>}
-          {error && (
+          {!hasTeamSelected && (
+            <TeamLeagueLeaders
+              gender={genderFilter}
+              region={regionFilter}
+              onSelectTeam={handleSelectTeamFromLeaders}
+            />
+          )}
+
+          {hasTeamSelected && loading && <p style={{ color: "#56616b" }}>Loading dashboard...</p>}
+          {hasTeamSelected && error && (
             <div
               style={{
                 color: "#c0392b",
@@ -314,10 +389,38 @@ export default function TeamDashboardPage() {
             </div>
           )}
 
-          {dashboard && !loading && (
+          {hasTeamSelected && dashboard && !loading && (
             <>
               <div style={{ marginBottom: "28px" }}>
-                <h2 style={{ margin: "0 0 8px 0", color: "#2c3e50" }}>{dashboard.team_name}</h2>
+                <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap", marginBottom: "8px" }}>
+                  <h2 style={{ margin: 0, color: "#2c3e50" }}>{dashboard.team_label || dashboard.team_name}</h2>
+                  {dashboard.gender && (
+                    <span
+                      style={{
+                        ...genderBadgeStyle(dashboard.gender),
+                        fontSize: "12px",
+                        fontWeight: 700,
+                        padding: "4px 10px",
+                        borderRadius: "999px",
+                      }}
+                    >
+                      {formatGenderLabel(dashboard.gender)}
+                    </span>
+                  )}
+                  {dashboard.region && (
+                    <span
+                      style={{
+                        ...regionBadgeStyle(dashboard.region),
+                        fontSize: "12px",
+                        fontWeight: 700,
+                        padding: "4px 10px",
+                        borderRadius: "999px",
+                      }}
+                    >
+                      {formatRegionLabel(dashboard.region)}
+                    </span>
+                  )}
+                </div>
                 <p style={{ margin: 0, color: "#56616b" }}>
                   {dashboard.games_played} saved game{dashboard.games_played === 1 ? "" : "s"} · Record{" "}
                   {dashboard.record.wins}-{dashboard.record.losses}
@@ -407,8 +510,8 @@ export default function TeamDashboardPage() {
               />
 
               <SeasonLeadersSection
-                players={dashboard.players}
-                description="for leader table stats including shooting rates, usage, and BPM."
+                players={dashboard.leader_players?.length ? dashboard.leader_players : dashboard.players}
+                description="Players need at least 50% of team games played (with minutes) to qualify. See metric definitions"
               />
 
               <section style={{ marginBottom: "32px" }}>

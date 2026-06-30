@@ -32,6 +32,7 @@ def _migrate_saved_games_columns():
         "source_url": "VARCHAR",
         "provider": "VARCHAR",
         "gender": "VARCHAR",
+        "region": "VARCHAR",
         "home_score": "INTEGER",
         "away_score": "INTEGER",
     }
@@ -56,6 +57,7 @@ def init_db():
     Base.metadata.create_all(bind=engine)
     _migrate_saved_games_columns()
     _backfill_cached_scores()
+    _backfill_nbl1_metadata()
 
 
 def _backfill_cached_scores():
@@ -72,5 +74,29 @@ def _backfill_cached_scores():
             game.home_score = home_score
             game.away_score = away_score
         db.commit()
+    finally:
+        db.close()
+
+
+def _backfill_nbl1_metadata():
+    from models import SavedGame
+    from nbl1_fixtures_sync import backfill_nbl1_metadata_from_fixtures, discover_nbl1_fixtures
+
+    db = SessionLocal()
+    try:
+        missing = (
+            db.query(SavedGame.id)
+            .filter(SavedGame.fixture_id.isnot(None))
+            .filter((SavedGame.gender.is_(None)) | (SavedGame.region.is_(None)))
+            .limit(1)
+            .first()
+        )
+        if not missing:
+            return
+
+        _, fixtures = discover_nbl1_fixtures()
+        backfill_nbl1_metadata_from_fixtures(db, fixtures)
+    except Exception:
+        db.rollback()
     finally:
         db.close()
