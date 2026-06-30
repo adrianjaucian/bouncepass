@@ -26,6 +26,8 @@ from schemas import (
     BoxScoreUrlRequest,
     BoxScoreUrlResponse,
     GameDetail,
+    GameImportBatchRequest,
+    GameImportBatchResponse,
     GameListResponse,
     GameSaveRequest,
     GameSummary,
@@ -302,11 +304,53 @@ def upload_nbl1_url_legacy(body: BoxScoreUrlRequest) -> Any:
 
 @app.post("/games", response_model=GameDetail)
 def save_game(game_in: GameSaveRequest, db: Session = Depends(get_db)) -> GameDetail:
+    record, skipped = _insert_game_if_new(db, game_in)
+    if skipped:
+        raise HTTPException(status_code=409, detail="This game is already saved")
+    if not record:
+        raise HTTPException(status_code=400, detail="Could not save game")
+    return game_to_detail(record)
+
+
+@app.post("/games/import-batch", response_model=GameImportBatchResponse)
+def import_games_batch(
+    body: GameImportBatchRequest,
+    db: Session = Depends(get_db),
+) -> GameImportBatchResponse:
+    imported = 0
+    skipped = 0
+    failed = 0
+    errors: List[str] = []
+
+    for index, game_in in enumerate(body.games):
+        try:
+            record, was_skipped = _insert_game_if_new(db, game_in)
+            if was_skipped:
+                skipped += 1
+            elif record:
+                imported += 1
+            else:
+                failed += 1
+                errors.append(f"Row {index + 1}: could not save game")
+        except Exception as exc:
+            db.rollback()
+            failed += 1
+            errors.append(f"Row {index + 1}: {exc}")
+
+    return GameImportBatchResponse(
+        imported=imported,
+        skipped=skipped,
+        failed=failed,
+        errors=errors[:20],
+    )
+
+
+def _insert_game_if_new(db: Session, game_in: GameSaveRequest) -> Tuple[Optional[SavedGame], bool]:
     fixture_id = (game_in.fixture_id or "").strip() or None
     if fixture_id:
         existing = db.query(SavedGame).filter(SavedGame.fixture_id == fixture_id).first()
         if existing:
-            raise HTTPException(status_code=409, detail="This game is already saved")
+            return existing, True
 
     record = SavedGame(
         game_date=game_in.game_date.strip(),
@@ -325,14 +369,14 @@ def save_game(game_in: GameSaveRequest, db: Session = Depends(get_db)) -> GameDe
     db.add(record)
     db.commit()
     db.refresh(record)
-    return game_to_detail(record)
+    return record, False
 
 
 @app.post("/sync/nbl1-fixtures", response_model=Nbl1SyncStartResponse)
 def sync_nbl1_fixtures_endpoint(body: Nbl1SyncRequest) -> Nbl1SyncStartResponse:
     payload = start_sync_job(
         season_year=body.season_year,
-        max_imports=body.max_imports or 15,
+        max_imports=body.max_imports or 40,
     )
     return Nbl1SyncStartResponse(**payload)
 

@@ -104,7 +104,7 @@ def _run_sync_job(season_year: Optional[str], max_imports: int) -> None:
             _state["running"] = False
 
 
-def start_sync_job(season_year: Optional[str] = None, max_imports: int = 15) -> Dict[str, Any]:
+def start_sync_job(season_year: Optional[str] = None, max_imports: int = 40) -> Dict[str, Any]:
     with _lock:
         if _state["running"]:
             return {"started": False, "message": "A sync is already running."}

@@ -15,6 +15,17 @@ class GameSaveRequest(BaseModel):
     region: Optional[str] = None
 
 
+class GameImportBatchRequest(BaseModel):
+    games: List[GameSaveRequest] = Field(..., min_length=1, max_length=50)
+
+
+class GameImportBatchResponse(BaseModel):
+    imported: int
+    skipped: int
+    failed: int
+    errors: List[str] = []
+
+
 class Nbl1SyncRequest(BaseModel):
     season_year: Optional[str] = None
     max_imports: Optional[int] = Field(default=None, ge=1, le=500)
