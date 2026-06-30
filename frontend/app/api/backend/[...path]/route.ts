@@ -40,18 +40,30 @@ async function proxyRequest(request: NextRequest, pathParts: string[]) {
     init.body = await request.arrayBuffer();
   }
 
-  const backendResponse = await fetch(backendUrl, init);
-  const responseBody = await backendResponse.arrayBuffer();
-  const responseHeaders = new Headers();
-  const responseContentType = backendResponse.headers.get("content-type");
-  if (responseContentType) {
-    responseHeaders.set("content-type", responseContentType);
-  }
+  try {
+    const backendResponse = await fetch(backendUrl, init);
+    const responseBody = await backendResponse.arrayBuffer();
+    const responseHeaders = new Headers();
+    const responseContentType = backendResponse.headers.get("content-type");
+    if (responseContentType) {
+      responseHeaders.set("content-type", responseContentType);
+    }
 
-  return new NextResponse(responseBody, {
-    status: backendResponse.status,
-    headers: responseHeaders,
-  });
+    return new NextResponse(responseBody, {
+      status: backendResponse.status,
+      headers: responseHeaders,
+    });
+  } catch (error) {
+    console.error("Backend proxy error:", backendUrl, error);
+    return NextResponse.json(
+      {
+        error: "Backend unavailable",
+        detail:
+          "The API server could not be reached. Ensure the Render backend is deployed and API_URL points to it.",
+      },
+      { status: 502 }
+    );
+  }
 }
 
 export async function GET(

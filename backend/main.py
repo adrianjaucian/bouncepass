@@ -58,6 +58,12 @@ app = FastAPI()
 def on_startup():
     init_db()
 
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+
 ACCESS_PASSWORD = os.getenv("ACCESS_PASSWORD", "")
 
 DEFAULT_ORIGINS = "https://bouncepass.net,https://www.bouncepass.net,http://localhost:3000"
@@ -82,6 +88,9 @@ async def access_password_middleware(request: Request, call_next):
         return await call_next(request)
 
     if request.method == "OPTIONS":
+        return await call_next(request)
+
+    if request.url.path == "/health":
         return await call_next(request)
 
     provided = request.headers.get("X-Access-Password", "")
