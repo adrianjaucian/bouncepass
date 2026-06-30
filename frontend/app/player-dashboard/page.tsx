@@ -182,9 +182,10 @@ function PlayerDashboardContent() {
   };
 
   const hasResults = Boolean(selectedPlayer.trim() || comparePlayers.length > 0 || dashboard || compareDashboards.length > 0);
+  const currentPlayerName = dashboard?.player_name ?? "";
   const canAddCurrentToCompare =
-    Boolean(dashboard?.player_name) &&
-    !comparePlayers.includes(dashboard.player_name) &&
+    currentPlayerName !== "" &&
+    !comparePlayers.includes(currentPlayerName) &&
     comparePlayers.length < MAX_COMPARE_PLAYERS;
 
   return (
