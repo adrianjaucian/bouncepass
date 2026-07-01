@@ -7,13 +7,42 @@ import {
 import { getPlayerNameFromRow } from "../lib/playerLinks";
 import PlayerLink from "./PlayerLink";
 
+const STICKY_NAME_COLUMN = {
+  minWidth: "140px",
+  maxWidth: "200px",
+  position: "sticky",
+  left: 0,
+  boxShadow: "2px 0 4px rgba(0, 0, 0, 0.08)",
+};
+
 function ResultsTable({ rows }) {
   return (
-    <div style={{ overflowX: 'auto', maxWidth: '100%', marginBottom: '24px' }}>
-      <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '12px', border: '1px solid #ddd', borderRadius: '5px', minWidth: '1400px' }}>
+    <div style={{ overflowX: "auto", maxWidth: "100%", marginBottom: "24px" }}>
+      <table
+        style={{
+          borderCollapse: "separate",
+          borderSpacing: 0,
+          width: "100%",
+          fontSize: "12px",
+          border: "1px solid #ddd",
+          borderRadius: "5px",
+          minWidth: "1400px",
+        }}
+      >
         <thead>
-          <tr style={{ backgroundColor: '#3498db', color: 'white' }}>
-            <th style={{ padding: '8px 4px', textAlign: 'left', fontWeight: 'bold' }}>Player</th>
+          <tr style={{ backgroundColor: "#3498db", color: "white" }}>
+            <th
+              style={{
+                ...STICKY_NAME_COLUMN,
+                zIndex: 3,
+                padding: "8px 4px",
+                textAlign: "left",
+                fontWeight: "bold",
+                backgroundColor: "#3498db",
+              }}
+            >
+              Player
+            </th>
             <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'bold' }}>MP</th>
             <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'bold' }}>FG</th>
             <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'bold' }}>FGA</th>
@@ -52,9 +81,19 @@ function ResultsTable({ rows }) {
         <tbody>
           {rows.map((player, i) => {
             const playerName = getPlayerNameFromRow(player, i);
+            const rowBackground = i % 2 === 0 ? "#fff" : "#f8f9fa";
             return (
-            <tr key={i} style={{ backgroundColor: i % 2 === 0 ? '#fff' : '#f8f9fa', borderBottom: '1px solid #eee' }}>
-              <td style={{ padding: '8px 4px', fontWeight: '500', color: '#000' }}>
+            <tr key={i} style={{ backgroundColor: rowBackground, borderBottom: "1px solid #eee" }}>
+              <td
+                style={{
+                  ...STICKY_NAME_COLUMN,
+                  zIndex: 1,
+                  padding: "8px 4px",
+                  fontWeight: "500",
+                  color: "#000",
+                  backgroundColor: rowBackground,
+                }}
+              >
                 <PlayerLink name={playerName} />
               </td>
               <td style={{ padding: '8px 4px', textAlign: 'center', color: '#000' }}>{formatMp(player.MP || player.MP_mins || player.mp || '0:00')}</td>
