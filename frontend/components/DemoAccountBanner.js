@@ -1,17 +1,22 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ADMIN_EMAIL } from "../lib/contact";
 
 export default function DemoAccountBanner() {
   const [showBanner, setShowBanner] = useState(false);
   const bannerRef = useRef(null);
+  const pathname = usePathname();
 
   useEffect(() => {
     const loadUser = async () => {
       try {
         const response = await fetch("/api/auth/me");
-        if (!response.ok) return;
+        if (!response.ok) {
+          setShowBanner(false);
+          return;
+        }
         const data = await response.json();
         setShowBanner((data.email || "").toLowerCase() === ADMIN_EMAIL);
       } catch {
@@ -19,7 +24,7 @@ export default function DemoAccountBanner() {
       }
     };
     loadUser();
-  }, []);
+  }, [pathname]);
 
   useEffect(() => {
     const root = document.documentElement;
