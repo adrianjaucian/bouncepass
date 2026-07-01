@@ -33,7 +33,7 @@ git push origin main
 3. Render detects `render.yaml` at the repo root (creates **bouncepass-api** web service and **bouncepass-db** PostgreSQL)
 4. When prompted, set:
    - **JWT_SECRET** — long random string (use the same value as `AUTH_SECRET` on Vercel)
-   - **ADMIN_EMAIL** — your email; orphan demo games are assigned to this account after migration
+   - **ADMIN_EMAIL** — `demo@bouncepass.net`; orphan demo games are assigned to this account after migration
 5. After deploy, open the service → **Settings** → **Custom Domains** → add **`api.bouncepass.net`**
 
 `DATABASE_URL` is wired automatically from the Postgres addon in `render.yaml`.
@@ -88,13 +88,13 @@ In [Cloudflare](https://dash.cloudflare.com) → **bouncepass.net** → **DNS** 
 
 ```bash
 cd backend
-ADMIN_EMAIL=you@example.com DATABASE_URL=<render-postgres-url> python ../scripts/assign_orphan_games.py
+ADMIN_EMAIL=demo@bouncepass.net DATABASE_URL=<render-postgres-url> python ../scripts/assign_orphan_games.py
 ```
 
 Or re-upload local games authenticated as your user:
 
 ```bash
-AUTH_EMAIL=you@example.com AUTH_PASSWORD=your-password \
+AUTH_EMAIL=demo@bouncepass.net AUTH_PASSWORD=your-password \
   PRODUCTION_API_URL=https://bouncepass-api.onrender.com \
   python scripts/upload_local_games_to_production.py
 ```
@@ -110,7 +110,7 @@ New users start with an empty game library.
 ```
 DATABASE_URL=<auto from Postgres addon>
 JWT_SECRET=<random-string>
-ADMIN_EMAIL=you@example.com
+ADMIN_EMAIL=demo@bouncepass.net
 ALLOWED_ORIGINS=https://bouncepass.net,https://www.bouncepass.net
 ```
 
@@ -138,7 +138,7 @@ AUTH_SECRET=dev-secret
 Register a local account, then assign existing SQLite games:
 
 ```bash
-ADMIN_EMAIL=you@example.com python scripts/assign_orphan_games.py
+ADMIN_EMAIL=demo@bouncepass.net python scripts/assign_orphan_games.py
 ```
 
 ---

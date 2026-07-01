@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
+import { BUG_REPORT_MAILTO, CONTACT_MAILTO } from "../lib/contact";
 
 const NAV_ITEMS = [
   { href: "/", label: "Home", color: "#3498db" },
@@ -73,8 +74,8 @@ export default function SiteNav() {
       ref={rootRef}
       style={{
         position: "fixed",
-        top: "16px",
-        right: "16px",
+        top: "var(--site-nav-top, 16px)",
+        left: "16px",
         zIndex: 1000,
         fontFamily: "Arial, sans-serif",
       }}
@@ -86,15 +87,16 @@ export default function SiteNav() {
         aria-haspopup="true"
         onClick={() => setOpen((current) => !current)}
         style={{
-          padding: "12px 18px",
+          padding: "8px 12px",
           backgroundColor: "#2c3e50",
           color: "#fff",
           border: "none",
-          borderRadius: "8px",
+          borderRadius: "6px",
           fontWeight: "bold",
-          fontSize: "14px",
+          fontSize: "12px",
           cursor: "pointer",
-          boxShadow: "0 4px 14px rgba(0, 0, 0, 0.18)",
+          boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)",
+          lineHeight: 1.2,
         }}
       >
         {open ? "Close Menu" : "Menu"}
@@ -106,9 +108,9 @@ export default function SiteNav() {
           aria-label="Site navigation"
           style={{
             position: "absolute",
-            top: "calc(100% + 10px)",
-            right: 0,
-            minWidth: "220px",
+            top: "calc(100% + 8px)",
+            left: 0,
+            minWidth: "200px",
             display: "flex",
             flexDirection: "column",
             gap: "8px",
@@ -150,6 +152,34 @@ export default function SiteNav() {
               </Link>
             );
           })}
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px", paddingTop: "4px", borderTop: "1px solid #eef2f6" }}>
+            <a
+              href={CONTACT_MAILTO}
+              onClick={() => setOpen(false)}
+              style={{
+                padding: "10px 14px",
+                color: "#56616b",
+                textDecoration: "none",
+                fontSize: "13px",
+                fontWeight: 600,
+              }}
+            >
+              Contact us
+            </a>
+            <a
+              href={BUG_REPORT_MAILTO}
+              onClick={() => setOpen(false)}
+              style={{
+                padding: "10px 14px",
+                color: "#56616b",
+                textDecoration: "none",
+                fontSize: "13px",
+                fontWeight: 600,
+              }}
+            >
+              Report a bug
+            </a>
+          </div>
           <button
             type="button"
             onClick={handleLogout}
