@@ -140,44 +140,73 @@ function ResultsTable({ rows }) {
 
 function TeamSummary({ totals, title }) {
   const t = totals || {
-    PTS: 0, FG: 0, FGA: 0, '3P': 0, '3PA': 0, FT: 0, FTA: 0,
+    PTS: 0, FG: 0, FGA: 0, "3P": 0, "3PA": 0, FT: 0, FTA: 0,
     ORB: 0, DRB: 0, TRB: 0, AST: 0, STL: 0, BLK: 0, TOV: 0,
-    'FG%': 0, '3P%': 0, 'FT%': 0,
+    "FG%": 0, "3P%": 0, "FT%": 0,
+  };
+
+  const columns = [
+    { key: "PTS", value: t.PTS },
+    { key: "FG", value: t.FG },
+    { key: "FGA", value: t.FGA },
+    { key: "FG%", value: `${(t["FG%"] * 100).toFixed(1)}%` },
+    { key: "3P", value: t["3P"] },
+    { key: "3PA", value: t["3PA"] },
+    { key: "3P%", value: `${(t["3P%"] * 100).toFixed(1)}%` },
+    { key: "FT", value: t.FT },
+    { key: "FTA", value: t.FTA },
+    { key: "FT%", value: `${(t["FT%"] * 100).toFixed(1)}%` },
+    { key: "ORB", value: t.ORB },
+    { key: "DRB", value: t.DRB },
+    { key: "TRB", value: t.TRB },
+    { key: "AST", value: t.AST },
+    { key: "STL", value: t.STL },
+    { key: "BLK", value: t.BLK },
+    { key: "TOV", value: t.TOV },
+  ];
+
+  const cellStyle = {
+    padding: "8px 4px",
+    textAlign: "center",
+    whiteSpace: "nowrap",
   };
 
   return (
-    <div style={{ marginTop: '12px', marginBottom: '20px' }}>
-      <h4 style={{ margin: '8px 0', color: '#000' }}>{title} — Team Totals</h4>
-      <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '13px', border: '1px solid #ddd', borderRadius: '5px', color: '#000' }}>
-        <thead>
-          <tr style={{ backgroundColor: '#f1f6f9', color: '#000' }}>
-            {['PTS', 'FG', 'FGA', 'FG%', '3P', '3PA', '3P%', 'FT', 'FTA', 'FT%', 'ORB', 'DRB', 'TRB', 'AST', 'STL', 'BLK', 'TOV'].map((col) => (
-              <th key={col} style={{ padding: '8px' }}>{col}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          <tr style={{ backgroundColor: '#fff' }}>
-            <td style={{ padding: '8px', textAlign: 'center' }}>{t.PTS}</td>
-            <td style={{ padding: '8px', textAlign: 'center' }}>{t.FG}</td>
-            <td style={{ padding: '8px', textAlign: 'center' }}>{t.FGA}</td>
-            <td style={{ padding: '8px', textAlign: 'center' }}>{(t['FG%'] * 100).toFixed(1)}%</td>
-            <td style={{ padding: '8px', textAlign: 'center' }}>{t['3P']}</td>
-            <td style={{ padding: '8px', textAlign: 'center' }}>{t['3PA']}</td>
-            <td style={{ padding: '8px', textAlign: 'center' }}>{(t['3P%'] * 100).toFixed(1)}%</td>
-            <td style={{ padding: '8px', textAlign: 'center' }}>{t.FT}</td>
-            <td style={{ padding: '8px', textAlign: 'center' }}>{t.FTA}</td>
-            <td style={{ padding: '8px', textAlign: 'center' }}>{(t['FT%'] * 100).toFixed(1)}%</td>
-            <td style={{ padding: '8px', textAlign: 'center' }}>{t.ORB}</td>
-            <td style={{ padding: '8px', textAlign: 'center' }}>{t.DRB}</td>
-            <td style={{ padding: '8px', textAlign: 'center' }}>{t.TRB}</td>
-            <td style={{ padding: '8px', textAlign: 'center' }}>{t.AST}</td>
-            <td style={{ padding: '8px', textAlign: 'center' }}>{t.STL}</td>
-            <td style={{ padding: '8px', textAlign: 'center' }}>{t.BLK}</td>
-            <td style={{ padding: '8px', textAlign: 'center' }}>{t.TOV}</td>
-          </tr>
-        </tbody>
-      </table>
+    <div style={{ marginTop: "12px", marginBottom: "20px" }}>
+      <h4 style={{ margin: "8px 0", color: "#000" }}>{title} — Team Totals</h4>
+      <div style={{ overflowX: "auto", maxWidth: "100%" }}>
+        <table
+          style={{
+            borderCollapse: "separate",
+            borderSpacing: 0,
+            width: "100%",
+            minWidth: "720px",
+            fontSize: "12px",
+            border: "1px solid #ddd",
+            borderRadius: "5px",
+            color: "#000",
+          }}
+        >
+          <thead>
+            <tr style={{ backgroundColor: "#f1f6f9", color: "#000" }}>
+              {columns.map((col) => (
+                <th key={col.key} style={{ ...cellStyle, fontWeight: "bold" }}>
+                  {col.key}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            <tr style={{ backgroundColor: "#fff" }}>
+              {columns.map((col) => (
+                <td key={col.key} style={cellStyle}>
+                  {col.value}
+                </td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
