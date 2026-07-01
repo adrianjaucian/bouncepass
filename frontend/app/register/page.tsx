@@ -1,12 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { FormEvent, Suspense, useState } from "react";
+import { useRouter } from "next/navigation";
+import { FormEvent, useState } from "react";
 
-function LoginForm() {
+export default function RegisterPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -18,7 +17,7 @@ function LoginForm() {
     setError("");
 
     try {
-      const response = await fetch("/api/auth/login", {
+      const response = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -26,15 +25,14 @@ function LoginForm() {
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
-        setError(data.error || "Invalid email or password");
+        setError(data.error || "Could not create account");
         return;
       }
 
-      const from = searchParams.get("from") || "/";
-      router.replace(from);
+      router.replace("/");
       router.refresh();
     } catch {
-      setError("Unable to sign in. Please try again.");
+      setError("Unable to create account. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -43,8 +41,10 @@ function LoginForm() {
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#f8f9fa", fontFamily: "Arial, sans-serif", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
       <div style={{ width: "100%", maxWidth: "420px", backgroundColor: "#fff", padding: "32px", borderRadius: "10px", boxShadow: "0 2px 10px rgba(0,0,0,0.1)" }}>
-        <h1 style={{ color: "#2c3e50", margin: "0 0 8px 0", fontSize: "1.8em", textAlign: "center" }}>Bounce PASS</h1>
-        <p style={{ color: "#7f8c8d", margin: "0 0 24px 0", textAlign: "center" }}>Sign in to access your saved games on any device.</p>
+        <h1 style={{ color: "#2c3e50", margin: "0 0 8px 0", fontSize: "1.8em", textAlign: "center" }}>Create account</h1>
+        <p style={{ color: "#7f8c8d", margin: "0 0 24px 0", textAlign: "center" }}>
+          Your saved games and dashboards stay tied to this account across devices.
+        </p>
 
         <form onSubmit={handleSubmit} style={{ display: "grid", gap: "16px" }}>
           <input
@@ -58,33 +58,33 @@ function LoginForm() {
           />
           <input
             type="password"
-            placeholder="Password"
+            placeholder="Password (8+ characters)"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
+            autoComplete="new-password"
             style={{ padding: "12px 14px", borderRadius: "8px", border: "1px solid #d0d7de", fontSize: "14px", color: "#000" }}
           />
           <button
             type="submit"
-            disabled={loading || !email || !password}
+            disabled={loading || !email || password.length < 8}
             style={{
               padding: "14px 24px",
-              backgroundColor: loading || !email || !password ? "#bdc3c7" : "#3498db",
+              backgroundColor: loading || !email || password.length < 8 ? "#bdc3c7" : "#3498db",
               color: "white",
               border: "none",
               borderRadius: "8px",
-              cursor: loading || !email || !password ? "not-allowed" : "pointer",
+              cursor: loading || !email || password.length < 8 ? "not-allowed" : "pointer",
               fontWeight: "bold",
             }}
           >
-            {loading ? "Signing in..." : "Sign in"}
+            {loading ? "Creating account..." : "Create account"}
           </button>
         </form>
 
         <p style={{ margin: "20px 0 0 0", textAlign: "center", color: "#56616b", fontSize: "14px" }}>
-          No account?{" "}
-          <Link href="/register" style={{ color: "#3498db", fontWeight: 600 }}>
-            Create one
+          Already have an account?{" "}
+          <Link href="/login" style={{ color: "#3498db", fontWeight: 600 }}>
+            Sign in
           </Link>
         </p>
 
@@ -95,13 +95,5 @@ function LoginForm() {
         )}
       </div>
     </div>
-  );
-}
-
-export default function LoginPage() {
-  return (
-    <Suspense>
-      <LoginForm />
-    </Suspense>
   );
 }

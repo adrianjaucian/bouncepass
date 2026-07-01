@@ -26,6 +26,26 @@ class GameImportBatchResponse(BaseModel):
     errors: List[str] = []
 
 
+class RegisterRequest(BaseModel):
+    email: str = Field(..., min_length=3)
+    password: str = Field(..., min_length=8)
+
+
+class LoginRequest(BaseModel):
+    email: str = Field(..., min_length=3)
+    password: str = Field(..., min_length=1)
+
+
+class UserResponse(BaseModel):
+    id: int
+    email: str
+
+
+class AuthResponse(BaseModel):
+    access_token: str
+    user: UserResponse
+
+
 class Nbl1SyncRequest(BaseModel):
     season_year: Optional[str] = None
     max_imports: Optional[int] = Field(default=None, ge=1, le=500)

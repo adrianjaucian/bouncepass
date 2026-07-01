@@ -20,8 +20,16 @@ from boxscore_normalize import (
 )
 from boxscore_url_scraper import UrlScrapeError, scrape_game_from_url
 from database import get_db, init_db
-from models import SavedGame
+from deps import get_current_user
+from models import SavedGame, User
+from auth_utils import (
+    create_access_token,
+    hash_password,
+    normalize_email,
+    verify_password,
+)
 from schemas import (
+    AuthResponse,
     BoxScoreUrlMeta,
     BoxScoreUrlRequest,
     BoxScoreUrlResponse,
@@ -32,6 +40,7 @@ from schemas import (
     GameSaveRequest,
     GameSummary,
     GameUpdateRequest,
+    LoginRequest,
     Nbl1SyncRequest,
     Nbl1SyncResponse,
     Nbl1SyncStartResponse,
@@ -39,9 +48,11 @@ from schemas import (
     PlayerDashboardResponse,
     PlayerLeagueLeadersResponse,
     PlayerListResponse,
+    RegisterRequest,
     TeamDashboardResponse,
     TeamLeagueLeadersResponse,
     TeamListResponse,
+    UserResponse,
 )
 from game_scores import scores_from_results
 from gender_utils import collect_team_options, filter_games_by_gender, normalize_gender
@@ -66,8 +77,6 @@ def health():
     return {"status": "ok"}
 
 
-ACCESS_PASSWORD = os.getenv("ACCESS_PASSWORD", "")
-
 DEFAULT_ORIGINS = "https://bouncepass.net,https://www.bouncepass.net,http://localhost:3000"
 ALLOWED_ORIGINS = [
     origin.strip()
@@ -84,22 +93,47 @@ app.add_middleware(
 )
 
 
-@app.middleware("http")
-async def access_password_middleware(request: Request, call_next):
-    if not ACCESS_PASSWORD:
-        return await call_next(request)
+def _user_to_response(user: User) -> UserResponse:
+    return UserResponse(id=user.id, email=user.email)
 
-    if request.method == "OPTIONS":
-        return await call_next(request)
 
-    if request.url.path == "/health":
-        return await call_next(request)
+@app.post("/auth/register", response_model=AuthResponse)
+def register(body: RegisterRequest, db: Session = Depends(get_db)) -> AuthResponse:
+    allow_registration = os.getenv("ALLOW_REGISTRATION", "true").lower() != "false"
+    if not allow_registration:
+        raise HTTPException(status_code=403, detail="Registration is disabled")
 
-    provided = request.headers.get("X-Access-Password", "")
-    if provided != ACCESS_PASSWORD:
-        return JSONResponse(status_code=401, content={"error": "Unauthorized"})
+    email = normalize_email(body.email)
+    if db.query(User).filter(User.email == email).first():
+        raise HTTPException(status_code=409, detail="An account with this email already exists")
 
-    return await call_next(request)
+    user = User(email=email, password_hash=hash_password(body.password))
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    token = create_access_token(user.id)
+    return AuthResponse(access_token=token, user=_user_to_response(user))
+
+
+@app.post("/auth/login", response_model=AuthResponse)
+def login(body: LoginRequest, db: Session = Depends(get_db)) -> AuthResponse:
+    email = normalize_email(body.email)
+    user = db.query(User).filter(User.email == email).first()
+    if not user or not verify_password(body.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    token = create_access_token(user.id)
+    return AuthResponse(access_token=token, user=_user_to_response(user))
+
+
+@app.get("/auth/me", response_model=UserResponse)
+def auth_me(current_user: User = Depends(get_current_user)) -> UserResponse:
+    return _user_to_response(current_user)
+
+
+def _user_games_query(db: Session, user: User):
+    return db.query(SavedGame).filter(SavedGame.user_id == user.id)
 
 
 async def parse_uploaded_csv(file: UploadFile) -> Tuple[Optional[pd.DataFrame], Optional[Dict[str, Any]]]:
@@ -196,7 +230,10 @@ def calculate_stats(df: pd.DataFrame, opponent_stats: Optional[Dict[str, int]] =
 
 
 @app.post("/upload-boxscore")
-async def upload_boxscore(file: UploadFile = File(...)) -> Any:
+async def upload_boxscore(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+) -> Any:
     df, error = await parse_uploaded_csv(file)
     if error:
         return JSONResponse(status_code=400, content=error)
@@ -220,6 +257,7 @@ async def upload_boxscore(file: UploadFile = File(...)) -> Any:
 async def upload_boxscores(
     home: UploadFile = File(...),
     away: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
 ) -> Any:
     home_df, home_error = await parse_uploaded_csv(home)
     if home_error:
@@ -257,7 +295,10 @@ async def upload_boxscores(
 
 
 @app.post("/upload-boxscore-url", response_model=BoxScoreUrlResponse)
-def upload_boxscore_url(body: BoxScoreUrlRequest) -> Any:
+def upload_boxscore_url(
+    body: BoxScoreUrlRequest,
+    current_user: User = Depends(get_current_user),
+) -> Any:
     try:
         home_df, away_df, meta = scrape_game_from_url(body.url)
     except UrlScrapeError as exc:
@@ -303,8 +344,12 @@ def upload_nbl1_url_legacy(body: BoxScoreUrlRequest) -> Any:
 
 
 @app.post("/games", response_model=GameDetail)
-def save_game(game_in: GameSaveRequest, db: Session = Depends(get_db)) -> GameDetail:
-    record, skipped = _insert_game_if_new(db, game_in)
+def save_game(
+    game_in: GameSaveRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> GameDetail:
+    record, skipped = _insert_game_if_new(db, game_in, current_user.id)
     if skipped:
         raise HTTPException(status_code=409, detail="This game is already saved")
     if not record:
@@ -316,6 +361,7 @@ def save_game(game_in: GameSaveRequest, db: Session = Depends(get_db)) -> GameDe
 def import_games_batch(
     body: GameImportBatchRequest,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> GameImportBatchResponse:
     imported = 0
     skipped = 0
@@ -324,7 +370,7 @@ def import_games_batch(
 
     for index, game_in in enumerate(body.games):
         try:
-            record, was_skipped = _insert_game_if_new(db, game_in)
+            record, was_skipped = _insert_game_if_new(db, game_in, current_user.id)
             if was_skipped:
                 skipped += 1
             elif record:
@@ -345,14 +391,23 @@ def import_games_batch(
     )
 
 
-def _insert_game_if_new(db: Session, game_in: GameSaveRequest) -> Tuple[Optional[SavedGame], bool]:
+def _insert_game_if_new(
+    db: Session,
+    game_in: GameSaveRequest,
+    user_id: int,
+) -> Tuple[Optional[SavedGame], bool]:
     fixture_id = (game_in.fixture_id or "").strip() or None
     if fixture_id:
-        existing = db.query(SavedGame).filter(SavedGame.fixture_id == fixture_id).first()
+        existing = (
+            db.query(SavedGame)
+            .filter(SavedGame.user_id == user_id, SavedGame.fixture_id == fixture_id)
+            .first()
+        )
         if existing:
             return existing, True
 
     record = SavedGame(
+        user_id=user_id,
         game_date=game_in.game_date.strip(),
         home_team_name=game_in.home_team_name.strip(),
         away_team_name=game_in.away_team_name.strip() if game_in.away_team_name else None,
@@ -373,8 +428,12 @@ def _insert_game_if_new(db: Session, game_in: GameSaveRequest) -> Tuple[Optional
 
 
 @app.post("/sync/nbl1-fixtures", response_model=Nbl1SyncStartResponse)
-def sync_nbl1_fixtures_endpoint(body: Nbl1SyncRequest) -> Nbl1SyncStartResponse:
+def sync_nbl1_fixtures_endpoint(
+    body: Nbl1SyncRequest,
+    current_user: User = Depends(get_current_user),
+) -> Nbl1SyncStartResponse:
     payload = start_sync_job(
+        user_id=current_user.id,
         season_year=body.season_year,
         max_imports=body.max_imports or 40,
     )
@@ -382,8 +441,10 @@ def sync_nbl1_fixtures_endpoint(body: Nbl1SyncRequest) -> Nbl1SyncStartResponse:
 
 
 @app.get("/sync/nbl1-fixtures/status", response_model=Nbl1SyncStatusResponse)
-def sync_nbl1_fixtures_status() -> Nbl1SyncStatusResponse:
-    status = get_sync_status()
+def sync_nbl1_fixtures_status(
+    current_user: User = Depends(get_current_user),
+) -> Nbl1SyncStatusResponse:
+    status = get_sync_status(current_user.id)
     result = status.get("result")
     return Nbl1SyncStatusResponse(
         running=status["running"],
@@ -401,13 +462,14 @@ def list_games(
     limit: int = 100,
     offset: int = 0,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> GameListResponse:
     from sqlalchemy import func, or_
 
     safe_limit = max(1, min(limit, 200))
     safe_offset = max(0, offset)
 
-    query = db.query(SavedGame)
+    query = _user_games_query(db, current_user)
     normalized_gender = normalize_gender(gender)
     if normalized_gender:
         query = query.filter(SavedGame.gender == normalized_gender)
@@ -446,8 +508,9 @@ def list_teams(
     gender: Optional[str] = None,
     region: Optional[str] = None,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> TeamListResponse:
-    games = db.query(SavedGame).all()
+    games = _user_games_query(db, current_user).all()
     filtered = filter_games_by_gender(games, gender)
     filtered = filter_games_by_region(filtered, region)
     options = collect_team_options(filtered, require_gender=True, require_region=True)
@@ -460,6 +523,7 @@ def team_dashboard(
     gender: Optional[str] = None,
     region: Optional[str] = None,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> TeamDashboardResponse:
     query = team_name.strip()
     if not query:
@@ -476,7 +540,11 @@ def team_dashboard(
             detail="region is required (north, south, east, west, or central)",
         )
 
-    games = db.query(SavedGame).order_by(SavedGame.game_date.desc(), SavedGame.created_at.desc()).all()
+    games = (
+        _user_games_query(db, current_user)
+        .order_by(SavedGame.game_date.desc(), SavedGame.created_at.desc())
+        .all()
+    )
     dashboard = build_team_dashboard(
         games,
         query,
@@ -496,8 +564,13 @@ def team_leaders(
     gender: Optional[str] = None,
     region: Optional[str] = None,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> TeamLeagueLeadersResponse:
-    games = db.query(SavedGame).order_by(SavedGame.game_date.desc(), SavedGame.created_at.desc()).all()
+    games = (
+        _user_games_query(db, current_user)
+        .order_by(SavedGame.game_date.desc(), SavedGame.created_at.desc())
+        .all()
+    )
     payload = build_team_league_leaders(
         games,
         gender=normalize_gender(gender),
@@ -511,8 +584,13 @@ def list_players(
     gender: Optional[str] = None,
     region: Optional[str] = None,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> PlayerListResponse:
-    games = db.query(SavedGame).order_by(SavedGame.game_date.desc(), SavedGame.created_at.desc()).all()
+    games = (
+        _user_games_query(db, current_user)
+        .order_by(SavedGame.game_date.desc(), SavedGame.created_at.desc())
+        .all()
+    )
     filtered = filter_games_by_gender(games, gender)
     filtered = filter_games_by_region(filtered, region)
     return PlayerListResponse(players=collect_player_names(filtered))
@@ -523,8 +601,13 @@ def player_leaders(
     gender: Optional[str] = None,
     region: Optional[str] = None,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> PlayerLeagueLeadersResponse:
-    games = db.query(SavedGame).order_by(SavedGame.game_date.desc(), SavedGame.created_at.desc()).all()
+    games = (
+        _user_games_query(db, current_user)
+        .order_by(SavedGame.game_date.desc(), SavedGame.created_at.desc())
+        .all()
+    )
     payload = build_league_leader_players(
         games,
         gender=normalize_gender(gender),
@@ -539,12 +622,17 @@ def player_dashboard(
     gender: Optional[str] = None,
     region: Optional[str] = None,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> PlayerDashboardResponse:
     query = player_name.strip()
     if not query:
         raise HTTPException(status_code=400, detail="player_name is required")
 
-    games = db.query(SavedGame).order_by(SavedGame.game_date.desc(), SavedGame.created_at.desc()).all()
+    games = (
+        _user_games_query(db, current_user)
+        .order_by(SavedGame.game_date.desc(), SavedGame.created_at.desc())
+        .all()
+    )
     dashboard = build_player_dashboard(
         games,
         query,
@@ -557,16 +645,33 @@ def player_dashboard(
 
 
 @app.get("/games/{game_id}", response_model=GameDetail)
-def get_game(game_id: int, db: Session = Depends(get_db)) -> GameDetail:
-    game = db.query(SavedGame).filter(SavedGame.id == game_id).first()
+def get_game(
+    game_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> GameDetail:
+    game = (
+        _user_games_query(db, current_user)
+        .filter(SavedGame.id == game_id)
+        .first()
+    )
     if not game:
         raise HTTPException(status_code=404, detail="Game not found")
     return game_to_detail(game)
 
 
 @app.put("/games/{game_id}", response_model=GameDetail)
-def update_game(game_id: int, game_in: GameUpdateRequest, db: Session = Depends(get_db)) -> GameDetail:
-    game = db.query(SavedGame).filter(SavedGame.id == game_id).first()
+def update_game(
+    game_id: int,
+    game_in: GameUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> GameDetail:
+    game = (
+        _user_games_query(db, current_user)
+        .filter(SavedGame.id == game_id)
+        .first()
+    )
     if not game:
         raise HTTPException(status_code=404, detail="Game not found")
 
@@ -584,8 +689,16 @@ def update_game(game_id: int, game_in: GameUpdateRequest, db: Session = Depends(
 
 
 @app.delete("/games/{game_id}")
-def delete_game(game_id: int, db: Session = Depends(get_db)) -> Dict[str, bool]:
-    game = db.query(SavedGame).filter(SavedGame.id == game_id).first()
+def delete_game(
+    game_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Dict[str, bool]:
+    game = (
+        _user_games_query(db, current_user)
+        .filter(SavedGame.id == game_id)
+        .first()
+    )
     if not game:
         raise HTTPException(status_code=404, detail="Game not found")
     db.delete(game)

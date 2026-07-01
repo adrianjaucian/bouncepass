@@ -6,12 +6,16 @@ from database import SessionLocal
 from nbl1_fixtures_sync import Nbl1SyncError, sync_nbl1_fixtures
 
 _lock = threading.Lock()
-_state: Dict[str, Any] = {
-    "running": False,
-    "progress": "",
-    "result": None,
-    "error": None,
-}
+_states: Dict[int, Dict[str, Any]] = {}
+
+
+def _empty_state() -> Dict[str, Any]:
+    return {
+        "running": False,
+        "progress": "",
+        "result": None,
+        "error": None,
+    }
 
 
 def _empty_aggregate() -> Dict[str, Any]:
@@ -30,13 +34,20 @@ def _empty_aggregate() -> Dict[str, Any]:
     }
 
 
-def get_sync_status() -> Dict[str, Any]:
+def _get_state(user_id: int) -> Dict[str, Any]:
+    if user_id not in _states:
+        _states[user_id] = _empty_state()
+    return _states[user_id]
+
+
+def get_sync_status(user_id: int) -> Dict[str, Any]:
     with _lock:
+        state = _get_state(user_id)
         return {
-            "running": _state["running"],
-            "progress": _state["progress"],
-            "result": deepcopy(_state["result"]),
-            "error": _state["error"],
+            "running": state["running"],
+            "progress": state["progress"],
+            "result": deepcopy(state["result"]),
+            "error": state["error"],
         }
 
 
@@ -54,12 +65,13 @@ def _merge_batch(aggregate: Dict[str, Any], batch: Dict[str, Any]) -> None:
     aggregate["has_more"] = batch.get("has_more", False)
 
 
-def _run_sync_job(season_year: Optional[str], max_imports: int) -> None:
+def _run_sync_job(user_id: int, season_year: Optional[str], max_imports: int) -> None:
+    state = _get_state(user_id)
     with _lock:
-        _state["running"] = True
-        _state["progress"] = "Starting NBL1 sync..."
-        _state["result"] = None
-        _state["error"] = None
+        state["running"] = True
+        state["progress"] = "Starting NBL1 sync..."
+        state["result"] = None
+        state["error"] = None
 
     aggregate = _empty_aggregate()
     try:
@@ -68,6 +80,7 @@ def _run_sync_job(season_year: Optional[str], max_imports: int) -> None:
             try:
                 batch = sync_nbl1_fixtures(
                     db,
+                    user_id=user_id,
                     season_year=season_year,
                     max_imports=max_imports,
                 )
@@ -76,7 +89,7 @@ def _run_sync_job(season_year: Optional[str], max_imports: int) -> None:
 
             _merge_batch(aggregate, batch)
             with _lock:
-                _state["progress"] = (
+                state["progress"] = (
                     f"Updated {aggregate['updated_metadata_count']} game"
                     f"{'' if aggregate['updated_metadata_count'] == 1 else 's'} with gender/region · "
                     f"Imported {aggregate['imported_count']} new game"
@@ -89,29 +102,34 @@ def _run_sync_job(season_year: Optional[str], max_imports: int) -> None:
                 break
 
         with _lock:
-            _state["result"] = aggregate
-            _state["progress"] = "Sync complete."
+            state["result"] = aggregate
+            state["progress"] = "Sync complete."
     except Nbl1SyncError as exc:
         with _lock:
-            _state["error"] = str(exc)
-            _state["progress"] = ""
+            state["error"] = str(exc)
+            state["progress"] = ""
     except Exception as exc:  # pragma: no cover
         with _lock:
-            _state["error"] = str(exc)
-            _state["progress"] = ""
+            state["error"] = str(exc)
+            state["progress"] = ""
     finally:
         with _lock:
-            _state["running"] = False
+            state["running"] = False
 
 
-def start_sync_job(season_year: Optional[str] = None, max_imports: int = 40) -> Dict[str, Any]:
+def start_sync_job(
+    user_id: int,
+    season_year: Optional[str] = None,
+    max_imports: int = 40,
+) -> Dict[str, Any]:
+    state = _get_state(user_id)
     with _lock:
-        if _state["running"]:
+        if state["running"]:
             return {"started": False, "message": "A sync is already running."}
 
     thread = threading.Thread(
         target=_run_sync_job,
-        args=(season_year, max_imports),
+        args=(user_id, season_year, max_imports),
         daemon=True,
     )
     thread.start()

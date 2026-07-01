@@ -1,15 +1,15 @@
 # Bounce PASS — Deploy to bouncepass.net (Cloudflare)
 
-Deploy **frontend** on Vercel, **backend** on Render, **DNS** on Cloudflare.
+Deploy **frontend** on Vercel, **backend** on Render (with PostgreSQL), **DNS** on Cloudflare.
 
 ## Architecture
 
 ```
 bouncepass.net      → Cloudflare DNS → Vercel (Next.js)
-api.bouncepass.net  → Cloudflare DNS → Render (FastAPI)
+api.bouncepass.net  → Cloudflare DNS → Render (FastAPI + PostgreSQL)
 ```
 
-The frontend proxies API calls through `/api/backend/*` so the password never appears in the browser.
+Users sign in with email and password. The frontend stores a JWT in an httpOnly cookie and proxies API calls through `/api/backend/*` with an `Authorization: Bearer` header.
 
 ---
 
@@ -19,17 +19,9 @@ From the project root:
 
 ```bash
 cd /Users/adrianjaucian/ADVstats
-git init
 git add .
-git commit -m "Prepare Bounce PASS for production deploy"
-```
-
-Create a new GitHub repo (e.g. `bouncepass`) and push:
-
-```bash
-git remote add origin git@github.com:YOUR_USERNAME/bouncepass.git
-git branch -M main
-git push -u origin main
+git commit -m "Multi-user auth and PostgreSQL"
+git push origin main
 ```
 
 ---
@@ -38,11 +30,13 @@ git push -u origin main
 
 1. Go to [render.com](https://render.com) → **New** → **Blueprint**
 2. Connect your GitHub repo
-3. Render detects `render.yaml` at the repo root
-4. When prompted for **ACCESS_PASSWORD**, enter your site password
-5. After deploy, open the service → **Settings** → **Custom Domains**
-6. Add **`api.bouncepass.net`**
-7. Note Render’s CNAME target (e.g. `bouncepass-api.onrender.com`)
+3. Render detects `render.yaml` at the repo root (creates **bouncepass-api** web service and **bouncepass-db** PostgreSQL)
+4. When prompted, set:
+   - **JWT_SECRET** — long random string (use the same value as `AUTH_SECRET` on Vercel)
+   - **ADMIN_EMAIL** — your email; orphan demo games are assigned to this account after migration
+5. After deploy, open the service → **Settings** → **Custom Domains** → add **`api.bouncepass.net`**
+
+`DATABASE_URL` is wired automatically from the Postgres addon in `render.yaml`.
 
 ---
 
@@ -58,9 +52,10 @@ In the [Vercel dashboard](https://vercel.com) → your project → **Settings** 
 
 | Name | Value |
 |------|-------|
-| `ACCESS_PASSWORD` | Same password as backend |
-| `API_URL` | `https://api.bouncepass.net` |
-| `AUTH_SECRET` | Any long random string |
+| `API_URL` | `https://api.bouncepass.net` (or `https://bouncepass-api.onrender.com` until DNS is ready) |
+| `AUTH_SECRET` | Same value as Render `JWT_SECRET` |
+
+Remove legacy `ACCESS_PASSWORD` from Vercel if still set.
 
 Deploy:
 
@@ -68,7 +63,7 @@ Deploy:
 npx vercel --prod
 ```
 
-Add domain: **Settings** → **Domains** → add `bouncepass.net` and `www.bouncepass.net`. Vercel shows the DNS records you need.
+Add domain: **Settings** → **Domains** → add `bouncepass.net` and `www.bouncepass.net`.
 
 ---
 
@@ -84,7 +79,27 @@ In [Cloudflare](https://dash.cloudflare.com) → **bouncepass.net** → **DNS** 
 
 **SSL/TLS** → set mode to **Full**.
 
-Wait a few minutes for DNS to propagate, then visit **https://bouncepass.net** — you should see the login page.
+---
+
+## Step 5 — Seed demo data (first deploy)
+
+1. Visit **https://bouncepass.net/register** and create the account matching `ADMIN_EMAIL`.
+2. On Render (or locally against production DB), run the orphan-assignment script:
+
+```bash
+cd backend
+ADMIN_EMAIL=you@example.com DATABASE_URL=<render-postgres-url> python ../scripts/assign_orphan_games.py
+```
+
+Or re-upload local games authenticated as your user:
+
+```bash
+AUTH_EMAIL=you@example.com AUTH_PASSWORD=your-password \
+  PRODUCTION_API_URL=https://bouncepass-api.onrender.com \
+  python scripts/upload_local_games_to_production.py
+```
+
+New users start with an empty game library.
 
 ---
 
@@ -93,30 +108,49 @@ Wait a few minutes for DNS to propagate, then visit **https://bouncepass.net** �
 ### Backend (Render)
 
 ```
-ACCESS_PASSWORD=<your-password>
+DATABASE_URL=<auto from Postgres addon>
+JWT_SECRET=<random-string>
+ADMIN_EMAIL=you@example.com
 ALLOWED_ORIGINS=https://bouncepass.net,https://www.bouncepass.net
 ```
 
 ### Frontend (Vercel)
 
 ```
-ACCESS_PASSWORD=<your-password>
 API_URL=https://api.bouncepass.net
-AUTH_SECRET=<random-string>
+AUTH_SECRET=<same as JWT_SECRET>
 ```
 
-### Local dev (already in `.env` / `.env.local`, not committed)
+### Local dev
+
+Copy `backend/.env.example` → `backend/.env` and `frontend/.env.example` → `frontend/.env.local`.
+
+```bash
+# backend/.env
+JWT_SECRET=dev-secret
+ALLOWED_ORIGINS=http://localhost:3000
+
+# frontend/.env.local
+API_URL=http://127.0.0.1:8000
+AUTH_SECRET=dev-secret
+```
+
+Register a local account, then assign existing SQLite games:
+
+```bash
+ADMIN_EMAIL=you@example.com python scripts/assign_orphan_games.py
+```
 
 ---
 
 ## Verify
 
 1. **https://bouncepass.net** → login page
-2. Enter password → upload page loads
-3. Upload a sample CSV → results appear
-4. Export works
+2. Register or sign in → home page loads
+3. Saved games and dashboards show only your games
+4. Menu shows your email and **Log out**
 
-If uploads fail with 401, confirm `ACCESS_PASSWORD` matches on **both** Vercel and Render, and `API_URL` on Vercel points to `https://api.bouncepass.net`.
+If API calls fail with 401, confirm `AUTH_SECRET` on Vercel matches `JWT_SECRET` on Render.
 
 ---
 

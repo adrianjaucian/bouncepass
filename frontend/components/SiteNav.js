@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 
 const NAV_ITEMS = [
@@ -14,12 +14,28 @@ const NAV_ITEMS = [
 
 export default function SiteNav() {
   const [open, setOpen] = useState(false);
+  const [userEmail, setUserEmail] = useState("");
   const pathname = usePathname();
+  const router = useRouter();
   const menuId = useId();
   const rootRef = useRef(null);
 
   useEffect(() => {
     setOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const response = await fetch("/api/auth/me");
+        if (!response.ok) return;
+        const data = await response.json();
+        setUserEmail(data.email || "");
+      } catch {
+        setUserEmail("");
+      }
+    };
+    loadUser();
   }, [pathname]);
 
   useEffect(() => {
@@ -44,6 +60,13 @@ export default function SiteNav() {
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [open]);
+
+  const handleLogout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    setOpen(false);
+    router.replace("/login");
+    router.refresh();
+  };
 
   return (
     <div
@@ -96,6 +119,12 @@ export default function SiteNav() {
             boxShadow: "0 8px 24px rgba(0, 0, 0, 0.14)",
           }}
         >
+          {userEmail && (
+            <div style={{ padding: "8px 10px", color: "#56616b", fontSize: "13px", borderBottom: "1px solid #eef2f6" }}>
+              Signed in as<br />
+              <strong style={{ color: "#2c3e50" }}>{userEmail}</strong>
+            </div>
+          )}
           {NAV_ITEMS.map((item) => {
             const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
 
@@ -121,6 +150,22 @@ export default function SiteNav() {
               </Link>
             );
           })}
+          <button
+            type="button"
+            onClick={handleLogout}
+            style={{
+              padding: "12px 14px",
+              backgroundColor: "#ecf0f1",
+              color: "#2c3e50",
+              border: "1px solid #d0d7de",
+              borderRadius: "6px",
+              fontWeight: "bold",
+              fontSize: "14px",
+              cursor: "pointer",
+            }}
+          >
+            Log out
+          </button>
         </nav>
       )}
     </div>

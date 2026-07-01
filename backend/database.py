@@ -1,9 +1,11 @@
 import os
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./saved_games.db")
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 engine = create_engine(DATABASE_URL, connect_args=connect_args)
@@ -20,7 +22,7 @@ def get_db():
 
 
 def _migrate_saved_games_columns():
-    from sqlalchemy import inspect, text
+    from sqlalchemy import inspect
 
     inspector = inspect(engine)
     if "saved_games" not in inspector.get_table_names():
@@ -35,6 +37,7 @@ def _migrate_saved_games_columns():
         "region": "VARCHAR",
         "home_score": "INTEGER",
         "away_score": "INTEGER",
+        "user_id": "INTEGER",
     }
 
     with engine.begin() as connection:
@@ -43,16 +46,18 @@ def _migrate_saved_games_columns():
                 connection.execute(text(f"ALTER TABLE saved_games ADD COLUMN {column_name} {column_type}"))
 
         if DATABASE_URL.startswith("sqlite"):
+            connection.execute(text("DROP INDEX IF EXISTS ix_saved_games_fixture_id"))
+            connection.execute(text("DROP INDEX IF EXISTS uq_saved_games_fixture_id"))
             connection.execute(
                 text(
-                    "CREATE UNIQUE INDEX IF NOT EXISTS ix_saved_games_fixture_id "
-                    "ON saved_games (fixture_id) WHERE fixture_id IS NOT NULL"
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_saved_games_user_fixture_id "
+                    "ON saved_games (user_id, fixture_id) WHERE fixture_id IS NOT NULL"
                 )
             )
 
 
 def init_db():
-    from models import SavedGame  # noqa: F401
+    from models import SavedGame, User  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
     _migrate_saved_games_columns()

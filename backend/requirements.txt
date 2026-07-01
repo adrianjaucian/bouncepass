@@ -8,3 +8,6 @@ gunicorn
 sqlalchemy
 pydantic
 lxml
+passlib[bcrypt]
+PyJWT
+psycopg2-binary

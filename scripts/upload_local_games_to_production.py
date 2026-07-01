@@ -31,10 +31,14 @@ def load_games(db_path: Path) -> List[Dict[str, Any]]:
 
     games: List[Dict[str, Any]] = []
     for row in rows:
+        game_date = (row["game_date"] or "").strip()
+        home_team_name = (row["home_team_name"] or "").strip()
+        if not game_date or not home_team_name:
+            continue
         games.append(
             {
-                "game_date": row["game_date"],
-                "home_team_name": row["home_team_name"],
+                "game_date": game_date,
+                "home_team_name": home_team_name,
                 "away_team_name": row["away_team_name"],
                 "results": json.loads(row["results_json"]),
                 "fixture_id": row["fixture_id"],
@@ -47,7 +51,7 @@ def load_games(db_path: Path) -> List[Dict[str, Any]]:
     return games
 
 
-def post_batch(api_url: str, password: str, games: List[Dict[str, Any]]) -> Dict[str, Any]:
+def post_batch(api_url: str, token: str, games: List[Dict[str, Any]]) -> Dict[str, Any]:
     payload = json.dumps({"games": games}).encode("utf-8")
     request = urllib.request.Request(
         f"{api_url.rstrip('/')}/games/import-batch",
@@ -55,20 +59,34 @@ def post_batch(api_url: str, password: str, games: List[Dict[str, Any]]) -> Dict
         method="POST",
         headers={
             "Content-Type": "application/json",
-            "X-Access-Password": password,
+            "Authorization": f"Bearer {token}",
         },
     )
     with urllib.request.urlopen(request, timeout=300) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
+def login(api_url: str, email: str, password: str) -> str:
+    payload = json.dumps({"email": email, "password": password}).encode("utf-8")
+    request = urllib.request.Request(
+        f"{api_url.rstrip('/')}/auth/login",
+        data=payload,
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(request, timeout=60) as response:
+        data = json.loads(response.read().decode("utf-8"))
+        return data["access_token"]
+
+
 def main() -> int:
     api_url = os.getenv("PRODUCTION_API_URL", DEFAULT_API)
-    password = os.getenv("ACCESS_PASSWORD", "").strip()
+    email = os.getenv("AUTH_EMAIL", "").strip()
+    password = os.getenv("AUTH_PASSWORD", "").strip()
     db_path = Path(os.getenv("LOCAL_DB", str(DEFAULT_DB)))
 
-    if not password:
-        print("Set ACCESS_PASSWORD in the environment.", file=sys.stderr)
+    if not email or not password:
+        print("Set AUTH_EMAIL and AUTH_PASSWORD in the environment.", file=sys.stderr)
         return 1
     if not db_path.exists():
         print(f"Database not found: {db_path}", file=sys.stderr)
@@ -77,6 +95,8 @@ def main() -> int:
     games = load_games(db_path)
     total = len(games)
     print(f"Loaded {total} games from {db_path}")
+    print(f"Logging in as {email}...")
+    token = login(api_url, email, password)
     print(f"Uploading to {api_url} in batches of {BATCH_SIZE}...")
 
     imported_total = 0
@@ -90,7 +110,7 @@ def main() -> int:
 
         for attempt in range(3):
             try:
-                result = post_batch(api_url, password, batch)
+                result = post_batch(api_url, token, batch)
                 imported_total += int(result.get("imported", 0))
                 skipped_total += int(result.get("skipped", 0))
                 failed_total += int(result.get("failed", 0))

@@ -114,8 +114,13 @@ def build_fixture_game_url(fixture_id: str) -> str:
     return f"https://www.nbl1.com.au/games/{fixture_id}"
 
 
-def load_saved_fixture_ids(db: Session) -> Set[str]:
-    rows = db.query(SavedGame.fixture_id).filter(SavedGame.fixture_id.isnot(None)).all()
+def load_saved_fixture_ids(db: Session, user_id: int) -> Set[str]:
+    rows = (
+        db.query(SavedGame.fixture_id)
+        .filter(SavedGame.user_id == user_id)
+        .filter(SavedGame.fixture_id.isnot(None))
+        .all()
+    )
     return {row[0] for row in rows if row[0]}
 
 
@@ -131,18 +136,22 @@ def _fixture_lookup(fixtures: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]
 def backfill_nbl1_metadata_from_fixtures(
     db: Session,
     fixtures: List[Dict[str, Any]],
+    user_id: Optional[int] = None,
 ) -> int:
     """Update gender/region on already-saved NBL1 games from fixture API data."""
     lookup = _fixture_lookup(fixtures)
     if not lookup:
         return 0
 
-    games = (
+    query = (
         db.query(SavedGame)
         .filter(SavedGame.fixture_id.isnot(None))
         .filter((SavedGame.gender.is_(None)) | (SavedGame.region.is_(None)))
-        .all()
     )
+    if user_id is not None:
+        query = query.filter(SavedGame.user_id == user_id)
+
+    games = query.all()
     if not games:
         return 0
 
@@ -177,6 +186,7 @@ def backfill_nbl1_metadata_from_fixtures(
 def save_synced_game(
     db: Session,
     *,
+    user_id: int,
     game_date: str,
     home_team_name: str,
     away_team_name: str,
@@ -187,6 +197,7 @@ def save_synced_game(
     region: Optional[str] = None,
 ) -> SavedGame:
     record = SavedGame(
+        user_id=user_id,
         game_date=game_date.strip(),
         home_team_name=home_team_name.strip(),
         away_team_name=away_team_name.strip() if away_team_name else None,
@@ -245,13 +256,14 @@ def scrape_fixture_to_results(fixture_id: str) -> Tuple[Dict[str, Any], Dict[str
 def sync_nbl1_fixtures(
     db: Session,
     *,
+    user_id: int,
     season_year: Optional[str] = None,
     delay_seconds: float = 0.05,
     max_imports: Optional[int] = None,
 ) -> Dict[str, Any]:
     year, fixtures = discover_nbl1_fixtures(season_year)
-    updated_metadata_count = backfill_nbl1_metadata_from_fixtures(db, fixtures)
-    saved_ids = load_saved_fixture_ids(db)
+    updated_metadata_count = backfill_nbl1_metadata_from_fixtures(db, fixtures, user_id=user_id)
+    saved_ids = load_saved_fixture_ids(db, user_id)
 
     completed = [match for match in fixtures if _is_completed_match(match)]
     pending = [match for match in completed if _match_fixture_id(match) not in saved_ids]
@@ -276,6 +288,7 @@ def sync_nbl1_fixtures(
             results, meta = scrape_fixture_to_results(fixture_id)
             record = save_synced_game(
                 db,
+                user_id=user_id,
                 game_date=meta.get("game_date") or _parse_game_date(match),
                 home_team_name=home_team or meta.get("home_team_name") or "",
                 away_team_name=away_team or meta.get("away_team_name") or "",

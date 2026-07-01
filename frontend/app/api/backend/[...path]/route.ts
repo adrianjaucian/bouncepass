@@ -1,20 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  AUTH_COOKIE_NAME,
-  getBackendUrl,
-  isAuthenticated,
-  isPasswordProtectionEnabled,
-} from "../../../../lib/auth";
+import { AUTH_COOKIE_NAME, getBackendUrl, isAuthenticated } from "../../../../lib/auth";
 
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
 async function proxyRequest(request: NextRequest, pathParts: string[]) {
-  if (isPasswordProtectionEnabled()) {
-    const cookieValue = request.cookies.get(AUTH_COOKIE_NAME)?.value;
-    if (!(await isAuthenticated(cookieValue))) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
+  if (!(await isAuthenticated(token))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const backendPath = pathParts.join("/");
@@ -25,11 +18,7 @@ async function proxyRequest(request: NextRequest, pathParts: string[]) {
   if (contentType) {
     headers.set("content-type", contentType);
   }
-
-  const accessPassword = process.env.ACCESS_PASSWORD;
-  if (accessPassword) {
-    headers.set("X-Access-Password", accessPassword);
-  }
+  headers.set("Authorization", `Bearer ${token}`);
 
   const init: RequestInit = {
     method: request.method,

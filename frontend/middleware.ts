@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { AUTH_COOKIE_NAME, isAuthenticated, isPasswordProtectionEnabled } from "./lib/auth";
+import { AUTH_COOKIE_NAME, isAuthenticated } from "./lib/auth";
 
 export async function middleware(request: NextRequest) {
-  if (!isPasswordProtectionEnabled()) {
-    return NextResponse.next();
-  }
-
   const { pathname } = request.nextUrl;
 
   if (
     pathname === "/login" ||
+    pathname === "/register" ||
     pathname.startsWith("/api/auth/") ||
     pathname.startsWith("/_next/") ||
     pathname === "/favicon.ico"

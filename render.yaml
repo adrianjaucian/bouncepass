@@ -1,3 +1,9 @@
+databases:
+  - name: bouncepass-db
+    plan: free
+    databaseName: bouncepass
+    user: bouncepass
+
 services:
   - type: web
     name: bouncepass-api
@@ -7,7 +13,13 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:$PORT
     envVars:
-      - key: ACCESS_PASSWORD
+      - key: DATABASE_URL
+        fromDatabase:
+          name: bouncepass-db
+          property: connectionString
+      - key: JWT_SECRET
+        sync: false
+      - key: ADMIN_EMAIL
         sync: false
       - key: ALLOWED_ORIGINS
         value: https://bouncepass.net,https://www.bouncepass.net
