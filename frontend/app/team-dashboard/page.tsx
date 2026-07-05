@@ -185,6 +185,9 @@ function TeamDashboardContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const teamParam = searchParams.get("team");
+  const pendingDeepLink = Boolean(teamParam);
+
   const selectedTeam = decodeTeamOption(teamSelection);
   const hasTeamSelected = Boolean(selectedTeam.name.trim() && selectedTeam.gender && selectedTeam.region);
 
@@ -260,7 +263,6 @@ function TeamDashboardContent() {
       }
       setLoading(true);
       setError("");
-      setDashboard(null);
       try {
         const data = await fetchTeamDashboard({
           name: selectedTeam.name.trim(),
@@ -395,7 +397,7 @@ function TeamDashboardContent() {
             </label>
           </div>
 
-          {!hasTeamSelected && (
+          {!hasTeamSelected && !pendingDeepLink && (
             <TeamLeagueLeaders
               gender={genderFilter}
               region={regionFilter}

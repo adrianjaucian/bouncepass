@@ -88,7 +88,7 @@ function PlayerDashboardContent() {
       }
     };
     loadTeams();
-  }, [genderFilter, regionFilter, teamFilter]);
+  }, [genderFilter, regionFilter]);
 
   useEffect(() => {
     const query = initialPlayer.trim();
@@ -117,7 +117,6 @@ function PlayerDashboardContent() {
 
       setLoading(true);
       setError("");
-      setDashboard(null);
       try {
         const data = await fetchDashboard(selectedPlayer);
         setDashboard(data);
@@ -408,15 +407,17 @@ function PlayerDashboardContent() {
             <p style={{ color: "#7f8c8d", margin: "0 0 24px 0" }}>Search for a player to view their dashboard.</p>
           )}
 
-          <PlayerLeagueLeaders
-            gender={genderFilter}
-            region={regionFilter}
-            teamName={selectedTeamFilter.name}
-            teamGender={selectedTeamFilter.gender}
-            teamRegion={selectedTeamFilter.region}
-            onSelectPlayer={selectPlayer}
-            selectedPlayer={selectedPlayer}
-          />
+          {!selectedPlayer.trim() && (
+            <PlayerLeagueLeaders
+              gender={genderFilter}
+              region={regionFilter}
+              teamName={selectedTeamFilter.name}
+              teamGender={selectedTeamFilter.gender}
+              teamRegion={selectedTeamFilter.region}
+              onSelectPlayer={selectPlayer}
+              selectedPlayer={selectedPlayer}
+            />
+          )}
         </main>
       </div>
     </div>

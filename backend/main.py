@@ -1,5 +1,6 @@
 import io
 import json
+import logging
 import os
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -62,9 +63,12 @@ from region_utils import filter_games_by_region, normalize_region
 from nbl1_sync_job import get_sync_status, start_sync_job
 from player_dashboard import build_league_leader_players, build_player_dashboard, collect_player_names
 from team_dashboard import build_team_dashboard, build_team_league_leaders
-from stats_engine import generate_advanced_stats
+from perf_utils import timed_step
 
 load_dotenv()
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("bouncepass.perf")
 
 app = FastAPI()
 
@@ -136,6 +140,23 @@ def auth_me(current_user: User = Depends(get_current_user)) -> UserResponse:
 
 def _user_games_query(db: Session, user: User):
     return db.query(SavedGame).filter(SavedGame.user_id == user.id)
+
+
+def _load_user_games(
+    db: Session,
+    user: User,
+    *,
+    gender: Optional[str] = None,
+    region: Optional[str] = None,
+) -> List[SavedGame]:
+    query = _user_games_query(db, user)
+    normalized_gender = normalize_gender(gender)
+    if normalized_gender:
+        query = query.filter(SavedGame.gender == normalized_gender)
+    normalized_region = normalize_region(region)
+    if normalized_region:
+        query = query.filter(SavedGame.region == normalized_region)
+    return query.order_by(SavedGame.game_date.desc(), SavedGame.created_at.desc()).all()
 
 
 async def parse_uploaded_csv(file: UploadFile) -> Tuple[Optional[pd.DataFrame], Optional[Dict[str, Any]]]:
@@ -695,17 +716,20 @@ def team_dashboard(
             detail="region is required (north, south, east, west, or central)",
         )
 
-    games = (
-        _user_games_query(db, current_user)
-        .order_by(SavedGame.game_date.desc(), SavedGame.created_at.desc())
-        .all()
-    )
-    dashboard = build_team_dashboard(
-        games,
-        query,
-        gender=normalized_gender,
-        region=normalized_region,
-    )
+    with timed_step("team_dashboard.db_query"):
+        games = _load_user_games(
+            db,
+            current_user,
+            gender=normalized_gender,
+            region=normalized_region,
+        )
+    with timed_step("team_dashboard.build"):
+        dashboard = build_team_dashboard(
+            games,
+            query,
+            gender=normalized_gender,
+            region=normalized_region,
+        )
     if dashboard["games_played"] == 0:
         raise HTTPException(
             status_code=404,
@@ -721,16 +745,19 @@ def team_leaders(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> TeamLeagueLeadersResponse:
-    games = (
-        _user_games_query(db, current_user)
-        .order_by(SavedGame.game_date.desc(), SavedGame.created_at.desc())
-        .all()
-    )
-    payload = build_team_league_leaders(
-        games,
-        gender=normalize_gender(gender),
-        region=normalize_region(region),
-    )
+    with timed_step("team_leaders.db_query"):
+        games = _load_user_games(
+            db,
+            current_user,
+            gender=normalize_gender(gender),
+            region=normalize_region(region),
+        )
+    with timed_step("team_leaders.build"):
+        payload = build_team_league_leaders(
+            games,
+            gender=normalize_gender(gender),
+            region=normalize_region(region),
+        )
     return TeamLeagueLeadersResponse(**payload)
 
 
@@ -771,19 +798,22 @@ def player_leaders(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> PlayerLeagueLeadersResponse:
-    games = (
-        _user_games_query(db, current_user)
-        .order_by(SavedGame.game_date.desc(), SavedGame.created_at.desc())
-        .all()
-    )
-    payload = build_league_leader_players(
-        games,
-        gender=normalize_gender(gender),
-        region=normalize_region(region),
-        team_name=team_name.strip() if team_name else None,
-        team_gender=normalize_gender(team_gender),
-        team_region=normalize_region(team_region),
-    )
+    with timed_step("player_leaders.db_query"):
+        games = _load_user_games(
+            db,
+            current_user,
+            gender=normalize_gender(gender),
+            region=normalize_region(region),
+        )
+    with timed_step("player_leaders.build"):
+        payload = build_league_leader_players(
+            games,
+            gender=normalize_gender(gender),
+            region=normalize_region(region),
+            team_name=team_name.strip() if team_name else None,
+            team_gender=normalize_gender(team_gender),
+            team_region=normalize_region(team_region),
+        )
     return PlayerLeagueLeadersResponse(**payload)
 
 
@@ -799,17 +829,20 @@ def player_dashboard(
     if not query:
         raise HTTPException(status_code=400, detail="player_name is required")
 
-    games = (
-        _user_games_query(db, current_user)
-        .order_by(SavedGame.game_date.desc(), SavedGame.created_at.desc())
-        .all()
-    )
-    dashboard = build_player_dashboard(
-        games,
-        query,
-        gender=normalize_gender(gender),
-        region=normalize_region(region),
-    )
+    with timed_step("player_dashboard.db_query"):
+        games = _load_user_games(
+            db,
+            current_user,
+            gender=normalize_gender(gender),
+            region=normalize_region(region),
+        )
+    with timed_step("player_dashboard.build"):
+        dashboard = build_player_dashboard(
+            games,
+            query,
+            gender=normalize_gender(gender),
+            region=normalize_region(region),
+        )
     if dashboard["games_played"] == 0:
         raise HTTPException(status_code=404, detail=f"No saved games found for player '{query}'")
     return PlayerDashboardResponse(**dashboard)

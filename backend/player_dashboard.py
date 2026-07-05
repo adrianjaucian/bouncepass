@@ -13,6 +13,7 @@ from team_dashboard import (
     get_usage_rate,
     shooting_pct,
 )
+from perf_utils import parse_game_results
 from leader_eligibility import filter_leader_eligible_players
 from trend_series import build_trend_charts, build_trend_point
 
@@ -115,6 +116,7 @@ def _accumulate_player_row(
     opponent_name: Optional[str],
     gender: Optional[str] = None,
     region: Optional[str] = None,
+    record_game_log: bool = True,
 ) -> None:
     mp_mins = parse_mp_to_minutes(row.get("MP"))
     if mp_mins <= 0 and row.get("MP_mins") is not None:
@@ -199,39 +201,40 @@ def _accumulate_player_row(
             bucket["fg3_sum"] += game_fg3
             bucket["fg3_readings"] += 1
 
-    bucket["game_log"].append(
-        {
-            "game_id": game_id,
-            "game_date": game_date,
-            "team_name": team_name,
-            "team_label": format_team_gender_short(team_name, gender),
-            "opponent": opponent_name,
-            "gender": normalize_gender(gender),
-            "region": normalize_region(region),
-            "mp_mins": round(mp_mins, 1),
-            "pts": int(pts),
-            "trb": int(trb),
-            "ast": int(ast),
-            "stl": int(stl),
-            "blk": int(blk),
-            "fg": int(fg),
-            "fga": int(fga),
-            "fg3": int(fg3),
-            "fg3a": int(fg3a),
-            "ft": int(ft),
-            "fta": int(fta),
-            "tov": int(tov),
-            "ts_pct": round(ts_pct, 4) if ts_pct is not None else None,
-            "efg_pct": round(efg_pct, 4) if efg_pct is not None else None,
-            "usg_pct": round(usg, 1) if usg > 0 else None,
-            "ortg": round(ortg, 1) if ortg > 0 else None,
-            "drtg": round(drtg, 1) if drtg > 0 else None,
-            "bpm": round(bpm, 1) if has_bpm else None,
-            "fg3par": round(game_fg3par, 4) if game_fg3par is not None else None,
-            "trb_pct": round(trb_pct, 1) if mp_mins > 0 else None,
-            "blk_pct": round(blk_pct, 1) if mp_mins > 0 else None,
-        }
-    )
+    if record_game_log:
+        bucket["game_log"].append(
+            {
+                "game_id": game_id,
+                "game_date": game_date,
+                "team_name": team_name,
+                "team_label": format_team_gender_short(team_name, gender),
+                "opponent": opponent_name,
+                "gender": normalize_gender(gender),
+                "region": normalize_region(region),
+                "mp_mins": round(mp_mins, 1),
+                "pts": int(pts),
+                "trb": int(trb),
+                "ast": int(ast),
+                "stl": int(stl),
+                "blk": int(blk),
+                "fg": int(fg),
+                "fga": int(fga),
+                "fg3": int(fg3),
+                "fg3a": int(fg3a),
+                "ft": int(ft),
+                "fta": int(fta),
+                "tov": int(tov),
+                "ts_pct": round(ts_pct, 4) if ts_pct is not None else None,
+                "efg_pct": round(efg_pct, 4) if efg_pct is not None else None,
+                "usg_pct": round(usg, 1) if usg > 0 else None,
+                "ortg": round(ortg, 1) if ortg > 0 else None,
+                "drtg": round(drtg, 1) if drtg > 0 else None,
+                "bpm": round(bpm, 1) if has_bpm else None,
+                "fg3par": round(game_fg3par, 4) if game_fg3par is not None else None,
+                "trb_pct": round(trb_pct, 1) if mp_mins > 0 else None,
+                "blk_pct": round(blk_pct, 1) if mp_mins > 0 else None,
+            }
+        )
 
 
 def _finalize_player_bucket(bucket: Dict[str, Any]) -> Dict[str, Any]:
@@ -312,16 +315,18 @@ def build_league_players(
     team_name: Optional[str] = None,
     team_gender: Optional[str] = None,
     team_region: Optional[str] = None,
+    include_game_log: bool = True,
 ) -> Tuple[List[Dict[str, Any]], int]:
     games = filter_games_by_gender(games, gender)
     games = filter_games_by_region(games, region)
+    parsed_results = parse_game_results(games)
     players: Dict[str, Dict[str, Any]] = {}
     team_filter = (team_name or "").strip().lower()
     team_gender_filter = normalize_gender(team_gender) if team_gender else None
     team_region_filter = normalize_region(team_region) if team_region else None
 
     for game in games:
-        results = json.loads(game.results_json)
+        results = parsed_results[game.id]
         sides = [
             ("home", game.home_team_name, game.away_team_name),
             ("away", game.away_team_name, game.home_team_name),
@@ -354,6 +359,7 @@ def build_league_players(
                     opponent_name=str(opponent_name).strip() if opponent_name else None,
                     gender=normalize_gender(getattr(game, "gender", None)),
                     region=normalize_region(getattr(game, "region", None)),
+                    record_game_log=include_game_log,
                 )
 
     player_list = [_finalize_player_bucket(bucket) for bucket in players.values()]
@@ -391,7 +397,7 @@ def collect_player_names(
     names = set()
 
     for game in games:
-        results = json.loads(game.results_json)
+        results = parsed_results[game.id]
         sides = [
             ("home", game.home_team_name),
             ("away", game.away_team_name),
@@ -452,6 +458,7 @@ def build_league_leader_players(
         team_name=team_name,
         team_gender=team_gender,
         team_region=team_region,
+        include_game_log=False,
     )
     leader_players = filter_leader_eligible_players(
         player_list,
@@ -488,19 +495,79 @@ def build_player_dashboard(
     gender: Optional[str] = None,
     region: Optional[str] = None,
 ) -> Dict[str, Any]:
-    player_list, league_games = build_league_players(games, gender=gender, region=region)
-    profile = find_player_profile(player_list, player_query)
+    games = filter_games_by_gender(games, gender)
+    games = filter_games_by_region(games, region)
+    parsed_results = parse_game_results(games)
+    query = player_query.strip()
+
+    league_buckets: Dict[str, Dict[str, Any]] = {}
+    target_buckets: Dict[str, Dict[str, Any]] = {}
+
+    for game in games:
+        results = parsed_results[game.id]
+        sides = [
+            ("home", game.home_team_name, game.away_team_name),
+            ("away", game.away_team_name, game.home_team_name),
+        ]
+
+        for side, side_team_name, opponent_name in sides:
+            if not side_team_name:
+                continue
+            rows = filter_player_rows(results.get(side))
+            if not rows:
+                continue
+
+            for index, row in enumerate(rows):
+                player_name = get_player_name(row, index)
+                if player_name not in league_buckets:
+                    league_buckets[player_name] = _new_player_bucket(player_name)
+                _accumulate_player_row(
+                    league_buckets[player_name],
+                    row,
+                    index,
+                    game_id=game.id,
+                    game_date=game.game_date,
+                    team_name=str(side_team_name).strip(),
+                    opponent_name=str(opponent_name).strip() if opponent_name else None,
+                    gender=normalize_gender(getattr(game, "gender", None)),
+                    region=normalize_region(getattr(game, "region", None)),
+                    record_game_log=False,
+                )
+
+                if query and player_names_match(player_name, query):
+                    if player_name not in target_buckets:
+                        target_buckets[player_name] = _new_player_bucket(player_name)
+                    _accumulate_player_row(
+                        target_buckets[player_name],
+                        row,
+                        index,
+                        game_id=game.id,
+                        game_date=game.game_date,
+                        team_name=str(side_team_name).strip(),
+                        opponent_name=str(opponent_name).strip() if opponent_name else None,
+                        gender=normalize_gender(getattr(game, "gender", None)),
+                        region=normalize_region(getattr(game, "region", None)),
+                        record_game_log=True,
+                    )
+
+    player_list = [_finalize_player_bucket(bucket) for bucket in league_buckets.values()]
+    assign_league_ranks(player_list)
+
+    target_list = [_finalize_player_bucket(bucket) for bucket in target_buckets.values()]
+    profile = find_player_profile(target_list, query) if target_list else None
+    if not profile:
+        profile = find_player_profile(player_list, query)
     if not profile:
         return {
-            "player_name": player_query.strip(),
-            "query": player_query.strip(),
+            "player_name": query,
+            "query": query,
             "games_played": 0,
             "teams": [],
             "stats": None,
             "games": [],
             "trend_charts": {"last_5": [], "last_10": [], "season": []},
             "league_players": len(player_list),
-            "league_games": league_games,
+            "league_games": len(games),
         }
 
     game_log = profile.pop("game_log")
@@ -525,12 +592,12 @@ def build_player_dashboard(
 
     return {
         "player_name": stats["player"],
-        "query": player_query.strip(),
+        "query": query,
         "games_played": stats["games"],
         "teams": stats.pop("teams"),
         "stats": stats,
         "games": game_log,
         "trend_charts": build_trend_charts(trend_points),
         "league_players": len(player_list),
-        "league_games": league_games,
+        "league_games": len(games),
     }

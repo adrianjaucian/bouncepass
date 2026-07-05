@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from boxscore_normalize import get_player_name, is_totals_row_name
 from stats_engine import GAME_MINUTES, estimate_possessions, parse_mp_to_minutes
 from leader_eligibility import player_meets_team_eligibility
+from perf_utils import parse_game_results
 from trend_series import build_trend_charts, build_trend_point
 
 from gender_utils import collect_team_options, filter_games_by_gender, format_team_label, normalize_gender
@@ -199,6 +200,70 @@ def _aggregate_snapshots(snapshots: List[Dict[str, float]]) -> Dict[str, float]:
     return aggregate
 
 
+def _snapshot_from_box_score(
+    rows: List[Dict[str, Any]],
+    opponent_rows: List[Dict[str, Any]],
+) -> Dict[str, float]:
+    team_game_pts = sum(get_row_number(row, ["PTS", "POINTS"]) for row in rows)
+    opp_game_pts = sum(get_row_number(row, ["PTS", "POINTS"]) for row in opponent_rows)
+
+    team_fg = sum(get_row_number(row, ["FG", "FGM"]) for row in rows)
+    team_fga = sum(get_row_number(row, ["FGA"]) for row in rows)
+    team_3p = sum(get_row_number(row, ["3P", "3PM"]) for row in rows)
+    team_fta = sum(get_row_number(row, ["FTA"]) for row in rows)
+    team_tov = sum(get_row_number(row, ["TOV", "TO"]) for row in rows)
+    game_possessions = estimate_possessions(team_fga, team_fta, team_tov)
+
+    opp_fga = sum(get_row_number(row, ["FGA"]) for row in opponent_rows)
+    opp_fta = sum(get_row_number(row, ["FTA"]) for row in opponent_rows)
+    opp_tov = sum(get_row_number(row, ["TOV", "TO"]) for row in opponent_rows)
+    opp_game_possessions = estimate_possessions(opp_fga, opp_fta, opp_tov)
+
+    game_weighted_ortg = 0.0
+    game_weighted_drtg = 0.0
+    game_player_mp = 0.0
+    game_team_mp = 0.0
+
+    for index, row in enumerate(rows):
+        mp_mins = parse_mp_to_minutes(row.get("MP"))
+        if mp_mins <= 0 and row.get("MP_mins") is not None:
+            mp_mins = get_row_number(row, ["MP_mins"])
+        ortg = get_row_number(row, ["ORtg"])
+        drtg = get_row_number(row, ["DRtg"])
+        if mp_mins > 0:
+            game_weighted_ortg += ortg * mp_mins
+            game_weighted_drtg += drtg * mp_mins
+            game_player_mp += mp_mins
+        game_team_mp += mp_mins
+
+    team_score = team_game_pts if rows else None
+    opp_score = opp_game_pts if opponent_rows else None
+    wins = 0.0
+    losses = 0.0
+    if team_score is not None and opp_score is not None:
+        if team_score > opp_score:
+            wins = 1.0
+        elif team_score < opp_score:
+            losses = 1.0
+
+    return {
+        "total_mp": game_player_mp,
+        "weighted_ortg": game_weighted_ortg,
+        "weighted_drtg": game_weighted_drtg,
+        "total_pts": team_game_pts,
+        "total_opp_pts": opp_game_pts,
+        "total_possessions": game_possessions,
+        "total_fg": team_fg,
+        "total_fga": team_fga,
+        "total_3p": team_3p,
+        "total_fta": team_fta,
+        "total_pace_poss": (game_possessions + opp_game_possessions) / 2,
+        "total_team_mp": game_team_mp,
+        "wins": wins,
+        "losses": losses,
+    }
+
+
 def build_team_dashboard(
     games: List[Any],
     team_query: str,
@@ -207,13 +272,14 @@ def build_team_dashboard(
 ) -> Dict[str, Any]:
     games = filter_games_by_gender(games, gender)
     games = filter_games_by_region(games, region)
+    parsed_results = parse_game_results(games)
     players: Dict[str, Dict[str, Any]] = {}
     matched_games: List[Dict[str, Any]] = []
     game_snapshots: List[Dict[str, Any]] = []
     trend_points: List[Dict[str, Any]] = []
 
     for game in games:
-        results = json.loads(game.results_json)
+        results = parsed_results[game.id]
         side = team_side_for_game(
             game.home_team_name,
             game.away_team_name,
@@ -229,26 +295,18 @@ def build_team_dashboard(
 
         opponent_name = game.away_team_name if side == "home" else game.home_team_name
         opponent_rows = filter_player_rows(results.get("away" if side == "home" else "home"))
-
-        team_game_pts = sum(get_row_number(row, ["PTS", "POINTS"]) for row in rows)
-        opp_game_pts = sum(get_row_number(row, ["PTS", "POINTS"]) for row in opponent_rows)
-
-        team_fg = sum(get_row_number(row, ["FG", "FGM"]) for row in rows)
-        team_fga = sum(get_row_number(row, ["FGA"]) for row in rows)
-        team_3p = sum(get_row_number(row, ["3P", "3PM"]) for row in rows)
-        team_fta = sum(get_row_number(row, ["FTA"]) for row in rows)
-        team_tov = sum(get_row_number(row, ["TOV", "TO"]) for row in rows)
-        game_possessions = estimate_possessions(team_fga, team_fta, team_tov)
-
-        opp_fga = sum(get_row_number(row, ["FGA"]) for row in opponent_rows)
-        opp_fta = sum(get_row_number(row, ["FTA"]) for row in opponent_rows)
-        opp_tov = sum(get_row_number(row, ["TOV", "TO"]) for row in opponent_rows)
-        opp_game_possessions = estimate_possessions(opp_fga, opp_fta, opp_tov)
-
-        game_team_mp = 0.0
-        game_weighted_ortg = 0.0
-        game_weighted_drtg = 0.0
-        game_player_mp = 0.0
+        side_snapshot = _snapshot_from_box_score(rows, opponent_rows)
+        team_game_pts = side_snapshot["total_pts"]
+        opp_game_pts = side_snapshot["total_opp_pts"]
+        game_possessions = side_snapshot["total_possessions"]
+        team_fg = side_snapshot["total_fg"]
+        team_fga = side_snapshot["total_fga"]
+        team_3p = side_snapshot["total_3p"]
+        team_fta = side_snapshot["total_fta"]
+        game_weighted_ortg = side_snapshot["weighted_ortg"]
+        game_weighted_drtg = side_snapshot["weighted_drtg"]
+        game_player_mp = side_snapshot["total_mp"]
+        game_team_mp = side_snapshot["total_team_mp"]
         team_trb = sum(get_row_number(row, ["TRB", "REB", "TOTAL_REB"]) for row in rows)
         team_ast = sum(get_row_number(row, ["AST"]) for row in rows)
 
@@ -323,9 +381,6 @@ def build_team_dashboard(
                 bucket["ortg_weighted"] += ortg * mp_mins
                 bucket["drtg_weighted"] += drtg * mp_mins
                 bucket["usg_weighted"] += usg * mp_mins
-                game_weighted_ortg += ortg * mp_mins
-                game_weighted_drtg += drtg * mp_mins
-                game_player_mp += mp_mins
                 if usg > 0:
                     bucket["usg_sum"] += usg
                     bucket["usg_readings"] += 1
@@ -340,19 +395,10 @@ def build_team_dashboard(
                 bucket["fg3_sum"] += game_fg3
                 bucket["fg3_readings"] += 1
 
-            game_team_mp += mp_mins
-
-        home_score, away_score = _scores_from_results(results)
-        team_score = home_score if side == "home" else away_score
-        opp_score = away_score if side == "home" else home_score
-
-        wins = 0.0
-        losses = 0.0
-        if team_score is not None and opp_score is not None:
-            if team_score > opp_score:
-                wins = 1.0
-            elif team_score < opp_score:
-                losses = 1.0
+        team_score = team_game_pts
+        opp_score = opp_game_pts
+        wins = side_snapshot["wins"]
+        losses = side_snapshot["losses"]
 
         matched_games.append(
             {
@@ -368,22 +414,7 @@ def build_team_dashboard(
         game_snapshots.append(
             {
                 "game_date": game.game_date,
-                "aggregate": {
-                    "total_mp": game_player_mp,
-                    "weighted_ortg": game_weighted_ortg,
-                    "weighted_drtg": game_weighted_drtg,
-                    "total_pts": team_game_pts,
-                    "total_opp_pts": opp_game_pts,
-                    "total_possessions": game_possessions,
-                    "total_fg": team_fg,
-                    "total_fga": team_fga,
-                    "total_3p": team_3p,
-                    "total_fta": team_fta,
-                    "total_pace_poss": (game_possessions + opp_game_possessions) / 2,
-                    "total_team_mp": game_team_mp,
-                    "wins": wins,
-                    "losses": losses,
-                },
+                "aggregate": side_snapshot,
             }
         )
 
@@ -444,25 +475,19 @@ def build_team_dashboard(
 
     resolved_team_name = team_query
     if matched_games:
-        first_game = next(
-            game
-            for game in games
-            if team_side_for_game(
-                game.home_team_name,
-                game.away_team_name,
-                json.loads(game.results_json),
+        first_entry = matched_games[0]
+        first_game = next((game for game in games if game.id == first_entry["id"]), None)
+        if first_game:
+            side = team_side_for_game(
+                first_game.home_team_name,
+                first_game.away_team_name,
+                {},
                 team_query,
             )
-        )
-        side = team_side_for_game(
-            first_game.home_team_name,
-            first_game.away_team_name,
-            json.loads(first_game.results_json),
-            team_query,
-        )
-        resolved_team_name = (
-            first_game.home_team_name if side == "home" else first_game.away_team_name
-        )
+            if side == "home":
+                resolved_team_name = first_game.home_team_name
+            elif side == "away":
+                resolved_team_name = first_game.away_team_name or team_query
 
     sorted_snapshots = sorted(game_snapshots, key=lambda item: item["game_date"], reverse=True)
     season_aggregate = _aggregate_snapshots([item["aggregate"] for item in sorted_snapshots])
@@ -599,27 +624,62 @@ def build_team_league_leaders(
 ) -> Dict[str, Any]:
     filtered = filter_games_by_gender(games, gender)
     filtered = filter_games_by_region(filtered, region)
-    options = collect_team_options(filtered, require_gender=True, require_region=True)
+    parsed_results = parse_game_results(filtered)
+
+    aggregates: Dict[Tuple[str, str, str], Dict[str, float]] = {}
+    team_meta: Dict[Tuple[str, str, str], Dict[str, str]] = {}
+    games_played: Dict[Tuple[str, str, str], int] = {}
+
+    for game in filtered:
+        results = parsed_results[game.id]
+        game_gender = normalize_gender(getattr(game, "gender", None))
+        game_region = normalize_region(getattr(game, "region", None))
+        if not game_gender or not game_region:
+            continue
+
+        sides = [
+            ("home", game.home_team_name, "away"),
+            ("away", game.away_team_name, "home"),
+        ]
+        for _side, team_name, opponent_side in sides:
+            if not team_name:
+                continue
+            rows = filter_player_rows(results.get(_side))
+            if not rows:
+                continue
+            opponent_rows = filter_player_rows(results.get(opponent_side))
+            key = (normalize_team_name(str(team_name)), game_gender, game_region)
+            if key not in aggregates:
+                aggregates[key] = _empty_aggregate()
+                team_meta[key] = {
+                    "team_name": str(team_name).strip(),
+                    "gender": game_gender,
+                    "region": game_region,
+                }
+                games_played[key] = 0
+
+            snapshot = _snapshot_from_box_score(rows, opponent_rows)
+            _merge_aggregate(aggregates[key], snapshot)
+            games_played[key] += 1
 
     teams: List[Dict[str, Any]] = []
-    for option in options:
-        dashboard = build_team_dashboard(
-            filtered,
-            option["name"],
-            gender=option["gender"],
-            region=option["region"],
-        )
-        if dashboard["games_played"] == 0:
+    for key, aggregate in aggregates.items():
+        meta = team_meta[key]
+        played = games_played.get(key, 0)
+        if played == 0:
             continue
         teams.append(
             {
-                "team_name": dashboard["team_name"],
-                "team_label": dashboard["team_label"],
-                "gender": dashboard.get("gender"),
-                "region": dashboard.get("region"),
-                "games_played": dashboard["games_played"],
-                "record": dashboard["record"],
-                "efficiency": dashboard["efficiency"],
+                "team_name": meta["team_name"],
+                "team_label": format_team_label(meta["team_name"], meta["gender"], meta["region"]),
+                "gender": meta["gender"],
+                "region": meta["region"],
+                "games_played": played,
+                "record": {
+                    "wins": int(aggregate["wins"]),
+                    "losses": int(aggregate["losses"]),
+                },
+                "efficiency": _efficiency_from_aggregate(aggregate),
             }
         )
 
