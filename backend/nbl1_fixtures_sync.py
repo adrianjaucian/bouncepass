@@ -9,6 +9,13 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import pandas as pd
 from sqlalchemy.orm import Session
 
+from game_dedup import (
+    dedupe_user_saved_games,
+    find_game_by_identity,
+    game_identity_key,
+    load_saved_game_keys,
+    upgrade_saved_game_from_sync,
+)
 from game_scores import scores_from_results
 from gender_utils import extract_gender_from_match, normalize_gender
 from region_utils import extract_region_from_match, normalize_region
@@ -115,13 +122,8 @@ def build_fixture_game_url(fixture_id: str) -> str:
 
 
 def load_saved_fixture_ids(db: Session, user_id: int) -> Set[str]:
-    rows = (
-        db.query(SavedGame.fixture_id)
-        .filter(SavedGame.user_id == user_id)
-        .filter(SavedGame.fixture_id.isnot(None))
-        .all()
-    )
-    return {row[0] for row in rows if row[0]}
+    fixture_ids, _ = load_saved_game_keys(db, user_id)
+    return fixture_ids
 
 
 def _fixture_lookup(fixtures: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
@@ -196,6 +198,44 @@ def save_synced_game(
     gender: Optional[str] = None,
     region: Optional[str] = None,
 ) -> SavedGame:
+    existing = (
+        db.query(SavedGame)
+        .filter(SavedGame.user_id == user_id, SavedGame.fixture_id == fixture_id)
+        .first()
+    )
+    if existing:
+        upgrade_saved_game_from_sync(
+            existing,
+            results=results,
+            fixture_id=fixture_id,
+            source_url=source_url,
+            gender=gender,
+            region=region,
+            game_date=game_date,
+            home_team_name=home_team_name,
+            away_team_name=away_team_name,
+        )
+        db.commit()
+        db.refresh(existing)
+        return existing
+
+    legacy = find_game_by_identity(db, user_id, game_date, home_team_name, away_team_name)
+    if legacy:
+        upgrade_saved_game_from_sync(
+            legacy,
+            results=results,
+            fixture_id=fixture_id,
+            source_url=source_url,
+            gender=gender,
+            region=region,
+            game_date=game_date,
+            home_team_name=home_team_name,
+            away_team_name=away_team_name,
+        )
+        db.commit()
+        db.refresh(legacy)
+        return legacy
+
     record = SavedGame(
         user_id=user_id,
         game_date=game_date.strip(),
@@ -262,15 +302,28 @@ def sync_nbl1_fixtures(
     max_imports: Optional[int] = None,
 ) -> Dict[str, Any]:
     year, fixtures = discover_nbl1_fixtures(season_year)
+    dedupe_stats = dedupe_user_saved_games(db, user_id)
     updated_metadata_count = backfill_nbl1_metadata_from_fixtures(db, fixtures, user_id=user_id)
-    saved_ids = load_saved_fixture_ids(db, user_id)
+    saved_ids, saved_identity_keys = load_saved_game_keys(db, user_id)
 
     completed = [match for match in fixtures if _is_completed_match(match)]
-    pending = [match for match in completed if _match_fixture_id(match) not in saved_ids]
+    pending = []
+    skipped_existing = 0
+    for match in completed:
+        fixture_id = _match_fixture_id(match)
+        if not fixture_id:
+            continue
+        home_team = (match.get("home_team") or {}).get("name") or ""
+        away_team = (match.get("away_team") or {}).get("name") or ""
+        game_date = _parse_game_date(match)
+        identity = game_identity_key(game_date, home_team, away_team)
+        if fixture_id in saved_ids or identity in saved_identity_keys:
+            skipped_existing += 1
+            continue
+        pending.append(match)
     batch = pending if max_imports is None else pending[:max_imports]
 
     imported: List[Dict[str, Any]] = []
-    skipped_existing = len(completed) - len(pending)
     errors: List[Dict[str, str]] = []
 
     for index, match in enumerate(batch):
@@ -311,6 +364,9 @@ def sync_nbl1_fixtures(
                 }
             )
             saved_ids.add(fixture_id)
+            saved_identity_keys.add(
+                game_identity_key(record.game_date, record.home_team_name, record.away_team_name)
+            )
         except Nbl1ScrapeError as exc:
             errors.append({"fixture_id": fixture_id, "label": label, "error": str(exc)})
         except Exception as exc:  # pragma: no cover - defensive guard for unexpected scrape failures
@@ -326,6 +382,7 @@ def sync_nbl1_fixtures(
         "completed": len(completed),
         "pending": len(pending),
         "skipped_existing": skipped_existing,
+        "deduped_count": dedupe_stats["deleted"],
         "updated_metadata_count": updated_metadata_count,
         "imported_count": len(imported),
         "imported": imported,

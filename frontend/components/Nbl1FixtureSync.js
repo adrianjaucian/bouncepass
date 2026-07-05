@@ -133,6 +133,7 @@ export default function Nbl1FixtureSync() {
           <p style={{ margin: "0 0 4px 0" }}>Discovered: {result.discovered}</p>
           <p style={{ margin: "0 0 4px 0" }}>Completed: {result.completed}</p>
           <p style={{ margin: "0 0 4px 0" }}>Skipped (already saved): {result.skipped_existing}</p>
+          <p style={{ margin: "0 0 4px 0" }}>Duplicates removed: {result.deduped_count ?? 0}</p>
           <p style={{ margin: "0 0 4px 0" }}>Updated gender/region: {result.updated_metadata_count ?? 0}</p>
           <p style={{ margin: "0 0 4px 0" }}>Imported: {result.imported_count}</p>
           <p style={{ margin: "0 0 12px 0" }}>Failed: {result.failed_count}</p>

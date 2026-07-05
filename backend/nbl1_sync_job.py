@@ -25,6 +25,7 @@ def _empty_aggregate() -> Dict[str, Any]:
         "completed": 0,
         "pending": 0,
         "skipped_existing": 0,
+        "deduped_count": 0,
         "updated_metadata_count": 0,
         "imported_count": 0,
         "imported": [],
@@ -57,6 +58,7 @@ def _merge_batch(aggregate: Dict[str, Any], batch: Dict[str, Any]) -> None:
     aggregate["completed"] = batch["completed"]
     aggregate["pending"] = batch["pending"]
     aggregate["skipped_existing"] = batch["skipped_existing"]
+    aggregate["deduped_count"] += batch.get("deduped_count", 0)
     aggregate["updated_metadata_count"] += batch.get("updated_metadata_count", 0)
     aggregate["imported_count"] += batch["imported_count"]
     aggregate["imported"].extend(batch.get("imported") or [])
@@ -90,6 +92,8 @@ def _run_sync_job(user_id: int, season_year: Optional[str], max_imports: int) ->
             _merge_batch(aggregate, batch)
             with _lock:
                 state["progress"] = (
+                    f"Removed {aggregate['deduped_count']} duplicate game"
+                    f"{'' if aggregate['deduped_count'] == 1 else 's'} · "
                     f"Updated {aggregate['updated_metadata_count']} game"
                     f"{'' if aggregate['updated_metadata_count'] == 1 else 's'} with gender/region · "
                     f"Imported {aggregate['imported_count']} new game"

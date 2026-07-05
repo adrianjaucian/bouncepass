@@ -36,6 +36,7 @@ from schemas import (
     GameDetail,
     GameImportBatchRequest,
     GameImportBatchResponse,
+    GameDedupeResponse,
     GameListResponse,
     GameSaveRequest,
     GameSummary,
@@ -54,6 +55,7 @@ from schemas import (
     TeamListResponse,
     UserResponse,
 )
+from game_dedup import dedupe_user_saved_games, find_game_by_identity, upgrade_saved_game_from_sync
 from game_scores import scores_from_results
 from gender_utils import collect_team_options, filter_games_by_gender, normalize_gender
 from region_utils import filter_games_by_region, normalize_region
@@ -508,6 +510,33 @@ def _insert_game_if_new(
         if existing:
             return existing, True
 
+    legacy = find_game_by_identity(
+        db,
+        user_id,
+        game_in.game_date,
+        game_in.home_team_name,
+        game_in.away_team_name,
+    )
+    if legacy:
+        if fixture_id or game_in.gender or game_in.region:
+            upgrade_saved_game_from_sync(
+                legacy,
+                results=game_in.results,
+                fixture_id=fixture_id or legacy.fixture_id or "",
+                source_url=(game_in.source_url or legacy.source_url or "").strip(),
+                gender=game_in.gender or legacy.gender,
+                region=game_in.region or legacy.region,
+                game_date=game_in.game_date,
+                home_team_name=game_in.home_team_name,
+                away_team_name=game_in.away_team_name,
+            )
+            if game_in.provider:
+                legacy.provider = (game_in.provider or "").strip() or legacy.provider
+            db.commit()
+            db.refresh(legacy)
+            return legacy, True
+        return legacy, True
+
     record = SavedGame(
         user_id=user_id,
         game_date=game_in.game_date.strip(),
@@ -527,6 +556,30 @@ def _insert_game_if_new(
     db.commit()
     db.refresh(record)
     return record, False
+
+
+@app.post("/games/dedupe", response_model=GameDedupeResponse)
+def dedupe_games(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> GameDedupeResponse:
+    from nbl1_fixtures_sync import backfill_nbl1_metadata_from_fixtures, discover_nbl1_fixtures
+
+    stats = dedupe_user_saved_games(db, current_user.id)
+    updated_metadata_count = 0
+    try:
+        _, fixtures = discover_nbl1_fixtures()
+        updated_metadata_count = backfill_nbl1_metadata_from_fixtures(
+            db, fixtures, user_id=current_user.id
+        )
+    except Exception:
+        pass
+
+    return GameDedupeResponse(
+        deleted=stats["deleted"],
+        remaining=stats["remaining"],
+        updated_metadata_count=updated_metadata_count,
+    )
 
 
 @app.post("/sync/nbl1-fixtures", response_model=Nbl1SyncStartResponse)

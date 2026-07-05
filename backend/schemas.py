@@ -26,6 +26,12 @@ class GameImportBatchResponse(BaseModel):
     errors: List[str] = []
 
 
+class GameDedupeResponse(BaseModel):
+    deleted: int
+    remaining: int
+    updated_metadata_count: int = 0
+
+
 class RegisterRequest(BaseModel):
     email: str = Field(..., min_length=3)
     password: str = Field(..., min_length=8)
@@ -74,6 +80,7 @@ class Nbl1SyncResponse(BaseModel):
     completed: int
     pending: int
     skipped_existing: int
+    deduped_count: int = 0
     updated_metadata_count: int = 0
     imported_count: int
     imported: List[Nbl1SyncImportedGame]
