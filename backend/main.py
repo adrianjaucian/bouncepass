@@ -537,6 +537,7 @@ def _insert_game_if_new(
         game_in.game_date,
         game_in.home_team_name,
         game_in.away_team_name,
+        gender=game_in.gender,
     )
     if legacy:
         if fixture_id or game_in.gender or game_in.region:

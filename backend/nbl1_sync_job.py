@@ -3,6 +3,7 @@ from copy import deepcopy
 from typing import Any, Dict, Optional
 
 from database import SessionLocal
+from game_dedup import dedupe_user_saved_games
 from nbl1_fixtures_sync import Nbl1SyncError, sync_nbl1_fixtures
 
 _lock = threading.Lock()
@@ -77,6 +78,13 @@ def _run_sync_job(user_id: int, season_year: Optional[str], max_imports: int) ->
 
     aggregate = _empty_aggregate()
     try:
+        db = SessionLocal()
+        try:
+            dedupe_stats = dedupe_user_saved_games(db, user_id)
+            aggregate["deduped_count"] = dedupe_stats["deleted"]
+        finally:
+            db.close()
+
         while True:
             db = SessionLocal()
             try:

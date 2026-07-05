@@ -13,7 +13,7 @@ from gender_utils import normalize_gender
 from models import SavedGame
 from region_utils import normalize_region
 
-IdentityKey = Tuple[str, str, str]
+IdentityKey = Tuple[str, str, str, str]
 
 
 def normalize_team_name(value: Optional[str]) -> str:
@@ -24,16 +24,32 @@ def game_identity_key(
     game_date: str,
     home_team_name: str,
     away_team_name: Optional[str],
+    gender: Optional[str] = None,
 ) -> IdentityKey:
+    """Date + teams + gender. Gender is required to keep men's/women's fixtures distinct."""
     return (
         str(game_date or "").strip(),
         normalize_team_name(home_team_name),
         normalize_team_name(away_team_name),
+        normalize_gender(gender) or "",
     )
 
 
 def identity_key_from_game(game: SavedGame) -> IdentityKey:
-    return game_identity_key(game.game_date, game.home_team_name, game.away_team_name)
+    return game_identity_key(
+        game.game_date,
+        game.home_team_name,
+        game.away_team_name,
+        game.gender,
+    )
+
+
+def teams_date_key(
+    game_date: str,
+    home_team_name: str,
+    away_team_name: Optional[str],
+) -> Tuple[str, str, str]:
+    return game_identity_key(game_date, home_team_name, away_team_name, None)[:3]
 
 
 def game_quality_score(game: SavedGame) -> Tuple[int, int, int, int, int]:
@@ -115,17 +131,27 @@ def find_game_by_identity(
     game_date: str,
     home_team_name: str,
     away_team_name: Optional[str],
+    gender: Optional[str] = None,
 ) -> Optional[SavedGame]:
-    target = game_identity_key(game_date, home_team_name, away_team_name)
+    target = game_identity_key(game_date, home_team_name, away_team_name, gender)
+    teams_key = teams_date_key(game_date, home_team_name, away_team_name)
     candidates = (
         db.query(SavedGame)
         .filter(SavedGame.user_id == user_id, SavedGame.game_date == game_date.strip())
         .all()
     )
+    legacy_match: Optional[SavedGame] = None
     for game in candidates:
         if identity_key_from_game(game) == target:
             return game
-    return None
+        if (
+            legacy_match is None
+            and not (game.fixture_id or "").strip()
+            and not game.gender
+            and teams_date_key(game.game_date, game.home_team_name, game.away_team_name) == teams_key
+        ):
+            legacy_match = game
+    return legacy_match
 
 
 def upgrade_saved_game_from_sync(

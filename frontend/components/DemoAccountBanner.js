@@ -65,7 +65,7 @@ export default function DemoAccountBanner() {
         textAlign: "center",
       }}
     >
-      <strong>Demo account.</strong> This account includes pre-synced NBL1 data as of 4/7/2026. To add
+      <strong>Demo account.</strong> This account includes pre-synced NBL1 data as of 5/7/2026. To add
       to the database, simply action the auto-sync on the homepage when more game box scores become
       available.
     </div>
