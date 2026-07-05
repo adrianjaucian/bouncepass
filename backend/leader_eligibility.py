@@ -122,12 +122,24 @@ def eligible_player_names(
     games: List[Any],
     gender: Optional[str] = None,
     region: Optional[str] = None,
+    team_name: Optional[str] = None,
+    team_gender: Optional[str] = None,
+    team_region: Optional[str] = None,
 ) -> Set[str]:
+    team_filter = (team_name or "").strip().lower()
+    team_gender_filter = normalize_gender(team_gender) if team_gender else None
+    team_region_filter = normalize_region(team_region) if team_region else None
     team_totals = build_team_game_counts(games, gender=gender, region=region)
     player_team_totals = build_player_team_game_counts(games, gender=gender, region=region)
     eligible: Set[str] = set()
 
     for (player_norm, team_key), player_games in player_team_totals.items():
+        if team_filter and team_key[0] != team_filter:
+            continue
+        if team_gender_filter and team_key[1] != team_gender_filter:
+            continue
+        if team_region_filter and team_key[2] != team_region_filter:
+            continue
         team_games = team_totals.get(team_key, 0)
         if player_meets_team_eligibility(player_games, team_games):
             eligible.add(player_norm)
@@ -140,8 +152,18 @@ def filter_leader_eligible_players(
     games: List[Any],
     gender: Optional[str] = None,
     region: Optional[str] = None,
+    team_name: Optional[str] = None,
+    team_gender: Optional[str] = None,
+    team_region: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    eligible = eligible_player_names(games, gender=gender, region=region)
+    eligible = eligible_player_names(
+        games,
+        gender=gender,
+        region=region,
+        team_name=team_name,
+        team_gender=team_gender,
+        team_region=team_region,
+    )
     if not eligible:
         return []
 

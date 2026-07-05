@@ -3,7 +3,7 @@ export const METRIC_SECTIONS = [
     id: "team-efficiency",
     title: "Team efficiency (dashboard)",
     description:
-      "Season-level team metrics on the Team Dashboard, aggregated from saved box scores. Trends compare the most recent 5 games to all earlier games in the sample.",
+      "Season-level team metrics on the Team Metrics page, aggregated from saved box scores. Trends compare the most recent 5 games to all earlier games in the sample.",
     metrics: [
       {
         id: "ortg",
@@ -40,7 +40,7 @@ export const METRIC_SECTIONS = [
           "Net rating is one of the cleanest 'are we winning the minutes?' indicators. Positive net rating means the offense is outpacing what the defense gives up, relative to the estimates used.",
         howToRead:
           "+5 is a strong player or lineup; +10 is elite over a meaningful sample. Small samples (a few games) can swing wildly.",
-        inApp: "Displayed on the Team Dashboard as the difference between the team's weighted ORtg and DRtg.",
+        inApp: "Displayed on the Team Metrics page as the difference between the team's weighted ORtg and DRtg.",
       },
       {
         id: "possession-ortg",

@@ -30,12 +30,12 @@ function formatBpm(value) {
   return value == null ? "—" : value.toFixed(1);
 }
 
-function sortEfgLeaders(players, sortBy, limit = LEADER_LIMIT) {
+function sortEfgLeaders(players, limit = LEADER_LIMIT) {
   return [...players]
     .filter((player) => player.efg_pct != null)
     .sort((a, b) => {
-      const aValue = sortBy === "total" ? a.efg_pct ?? 0 : a.efg_avg ?? 0;
-      const bValue = sortBy === "total" ? b.efg_pct ?? 0 : b.efg_avg ?? 0;
+      const aValue = a.efg_pct ?? 0;
+      const bValue = b.efg_pct ?? 0;
       if (bValue !== aValue) return bValue - aValue;
       return a.player.localeCompare(b.player);
     })
@@ -54,12 +54,12 @@ function sortThreePointLeaders(players, sortBy, limit = LEADER_LIMIT) {
     .slice(0, limit);
 }
 
-function sortBpmLeaders(players, sortBy, limit = LEADER_LIMIT) {
+function sortBpmLeaders(players, limit = LEADER_LIMIT) {
   return [...players]
     .filter((player) => player.bpm != null)
     .sort((a, b) => {
-      const aValue = sortBy === "total" ? a.bpm ?? 0 : a.bpm_avg ?? 0;
-      const bValue = sortBy === "total" ? b.bpm ?? 0 : b.bpm_avg ?? 0;
+      const aValue = a.bpm ?? 0;
+      const bValue = b.bpm ?? 0;
       if (bValue !== aValue) return bValue - aValue;
       return a.player.localeCompare(b.player);
     })
@@ -77,11 +77,12 @@ function sortStatLeaders(players, stat, sortBy, limit = LEADER_LIMIT) {
     .slice(0, limit);
 }
 
-function sortUsageLeaders(players, sortBy, limit = LEADER_LIMIT) {
+function sortUsageLeaders(players, limit = LEADER_LIMIT) {
   return [...players]
+    .filter((player) => player.usg_pct != null)
     .sort((a, b) => {
-      const aValue = sortBy === "total" ? a.usg_pct ?? 0 : a.usg_avg ?? 0;
-      const bValue = sortBy === "total" ? b.usg_pct ?? 0 : b.usg_avg ?? 0;
+      const aValue = a.usg_pct ?? 0;
+      const bValue = b.usg_pct ?? 0;
       if (bValue !== aValue) return bValue - aValue;
       return a.player.localeCompare(b.player);
     })
@@ -176,9 +177,9 @@ function LeaderTable({ title, players, stat, statLabel, sortBy, showTeams, forma
   );
 }
 
-function UsageLeaderTable({ title, players, sortBy, showTeams }) {
+function UsageLeaderTable({ title, players, showTeams }) {
   const formatUsg = (value) => (value == null ? "—" : `${value.toFixed(1)}%`);
-  const rows = sortUsageLeaders(players, sortBy);
+  const rows = sortUsageLeaders(players);
 
   return (
     <div style={{ flex: "1 1 280px", minWidth: "260px" }}>
@@ -188,24 +189,7 @@ function UsageLeaderTable({ title, players, sortBy, showTeams }) {
           <tr style={{ backgroundColor: "#f1f6f9" }}>
             <th style={{ ...tableHeaderStyle, textAlign: "left" }}>Player</th>
             <th style={{ ...tableHeaderStyle, textAlign: "center" }}>GP</th>
-            <th
-              style={{
-                ...tableHeaderStyle,
-                textAlign: "center",
-                fontWeight: sortBy === "total" ? "bold" : tableHeaderStyle.fontWeight,
-              }}
-            >
-              USG%
-            </th>
-            <th
-              style={{
-                ...tableHeaderStyle,
-                textAlign: "center",
-                fontWeight: sortBy === "avg" ? "bold" : tableHeaderStyle.fontWeight,
-              }}
-            >
-              AVG
-            </th>
+            <th style={{ ...tableHeaderStyle, textAlign: "center" }}>USG%</th>
           </tr>
         </thead>
         <tbody>
@@ -213,25 +197,8 @@ function UsageLeaderTable({ title, players, sortBy, showTeams }) {
             <tr key={row.player} style={{ backgroundColor: index % 2 === 0 ? "#fff" : "#fafbfc" }}>
               <PlayerCell name={row.player} teams={row.teams} showTeams={showTeams} />
               <td style={{ padding: "10px", textAlign: "center", color: "#000" }}>{row.games}</td>
-              <td
-                style={{
-                  padding: "10px",
-                  textAlign: "center",
-                  fontWeight: sortBy === "total" ? "bold" : "normal",
-                  color: "#000",
-                }}
-              >
+              <td style={{ padding: "10px", textAlign: "center", fontWeight: "bold", color: "#000" }}>
                 {formatUsg(row.usg_pct)}
-              </td>
-              <td
-                style={{
-                  padding: "10px",
-                  textAlign: "center",
-                  fontWeight: sortBy === "avg" ? "bold" : "normal",
-                  color: "#000",
-                }}
-              >
-                {formatUsg(row.usg_avg)}
               </td>
             </tr>
           ))}
@@ -241,8 +208,8 @@ function UsageLeaderTable({ title, players, sortBy, showTeams }) {
   );
 }
 
-function EfgLeaderTable({ title, players, sortBy, showTeams }) {
-  const rows = sortEfgLeaders(players, sortBy);
+function EfgLeaderTable({ title, players, showTeams }) {
+  const rows = sortEfgLeaders(players);
 
   return (
     <div style={{ flex: "1 1 280px", minWidth: "260px" }}>
@@ -252,24 +219,7 @@ function EfgLeaderTable({ title, players, sortBy, showTeams }) {
           <tr style={{ backgroundColor: "#f1f6f9" }}>
             <th style={{ ...tableHeaderStyle, textAlign: "left" }}>Player</th>
             <th style={{ ...tableHeaderStyle, textAlign: "center" }}>GP</th>
-            <th
-              style={{
-                ...tableHeaderStyle,
-                textAlign: "center",
-                fontWeight: sortBy === "total" ? "bold" : tableHeaderStyle.fontWeight,
-              }}
-            >
-              eFG%
-            </th>
-            <th
-              style={{
-                ...tableHeaderStyle,
-                textAlign: "center",
-                fontWeight: sortBy === "avg" ? "bold" : tableHeaderStyle.fontWeight,
-              }}
-            >
-              AVG
-            </th>
+            <th style={{ ...tableHeaderStyle, textAlign: "center" }}>eFG%</th>
           </tr>
         </thead>
         <tbody>
@@ -277,25 +227,8 @@ function EfgLeaderTable({ title, players, sortBy, showTeams }) {
             <tr key={row.player} style={{ backgroundColor: index % 2 === 0 ? "#fff" : "#fafbfc" }}>
               <PlayerCell name={row.player} teams={row.teams} showTeams={showTeams} />
               <td style={{ padding: "10px", textAlign: "center", color: "#000" }}>{row.games}</td>
-              <td
-                style={{
-                  padding: "10px",
-                  textAlign: "center",
-                  fontWeight: sortBy === "total" ? "bold" : "normal",
-                  color: "#000",
-                }}
-              >
+              <td style={{ padding: "10px", textAlign: "center", fontWeight: "bold", color: "#000" }}>
                 {formatRatePercent(row.efg_pct)}
-              </td>
-              <td
-                style={{
-                  padding: "10px",
-                  textAlign: "center",
-                  fontWeight: sortBy === "avg" ? "bold" : "normal",
-                  color: "#000",
-                }}
-              >
-                {formatRatePercent(row.efg_avg)}
               </td>
             </tr>
           ))}
@@ -347,8 +280,8 @@ function ThreePointLeaderTable({ title, players, sortBy, showTeams }) {
   );
 }
 
-function BpmLeaderTable({ title, players, sortBy, showTeams }) {
-  const rows = sortBpmLeaders(players, sortBy);
+function BpmLeaderTable({ title, players, showTeams }) {
+  const rows = sortBpmLeaders(players);
 
   return (
     <div style={{ flex: "1 1 280px", minWidth: "260px" }}>
@@ -358,24 +291,7 @@ function BpmLeaderTable({ title, players, sortBy, showTeams }) {
           <tr style={{ backgroundColor: "#f1f6f9" }}>
             <th style={{ ...tableHeaderStyle, textAlign: "left" }}>Player</th>
             <th style={{ ...tableHeaderStyle, textAlign: "center" }}>GP</th>
-            <th
-              style={{
-                ...tableHeaderStyle,
-                textAlign: "center",
-                fontWeight: sortBy === "total" ? "bold" : tableHeaderStyle.fontWeight,
-              }}
-            >
-              BPM
-            </th>
-            <th
-              style={{
-                ...tableHeaderStyle,
-                textAlign: "center",
-                fontWeight: sortBy === "avg" ? "bold" : tableHeaderStyle.fontWeight,
-              }}
-            >
-              AVG
-            </th>
+            <th style={{ ...tableHeaderStyle, textAlign: "center" }}>BPM</th>
           </tr>
         </thead>
         <tbody>
@@ -383,25 +299,8 @@ function BpmLeaderTable({ title, players, sortBy, showTeams }) {
             <tr key={row.player} style={{ backgroundColor: index % 2 === 0 ? "#fff" : "#fafbfc" }}>
               <PlayerCell name={row.player} teams={row.teams} showTeams={showTeams} />
               <td style={{ padding: "10px", textAlign: "center", color: "#000" }}>{row.games}</td>
-              <td
-                style={{
-                  padding: "10px",
-                  textAlign: "center",
-                  fontWeight: sortBy === "total" ? "bold" : "normal",
-                  color: "#000",
-                }}
-              >
+              <td style={{ padding: "10px", textAlign: "center", fontWeight: "bold", color: "#000" }}>
                 {formatBpm(row.bpm)}
-              </td>
-              <td
-                style={{
-                  padding: "10px",
-                  textAlign: "center",
-                  fontWeight: sortBy === "avg" ? "bold" : "normal",
-                  color: "#000",
-                }}
-              >
-                {formatBpm(row.bpm_avg)}
               </td>
             </tr>
           ))}
@@ -438,7 +337,7 @@ export default function SeasonLeadersSection({
       >
         <h3 style={{ margin: 0, color: "#2c3e50" }}>{title}</h3>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <span style={{ color: "#7f8c8d", fontSize: "14px" }}>Sort by:</span>
+          <span style={{ color: "#7f8c8d", fontSize: "14px" }}>Sort counting stats by:</span>
           <button
             type="button"
             onClick={() => setLeaderSortBy("total")}
@@ -473,10 +372,10 @@ export default function SeasonLeadersSection({
         <LeaderTable title="Top Assists" players={players} stat="ast" statLabel="AST" sortBy={leaderSortBy} showTeams={showTeams} />
         <LeaderTable title="Top Steals" players={players} stat="stl" statLabel="STL" sortBy={leaderSortBy} showTeams={showTeams} />
         <LeaderTable title="Top Blocks" players={players} stat="blk" statLabel="BLK" sortBy={leaderSortBy} showTeams={showTeams} />
-        <UsageLeaderTable title="Usage Rate" players={players} sortBy={leaderSortBy} showTeams={showTeams} />
-        <EfgLeaderTable title="Top eFG%" players={players} sortBy={leaderSortBy} showTeams={showTeams} />
+        <UsageLeaderTable title="Usage Rate" players={players} showTeams={showTeams} />
+        <EfgLeaderTable title="Top eFG%" players={players} showTeams={showTeams} />
         <ThreePointLeaderTable title="Top 3P%" players={players} sortBy={leaderSortBy} showTeams={showTeams} />
-        <BpmLeaderTable title="Top BPM" players={players} sortBy={leaderSortBy} showTeams={showTeams} />
+        <BpmLeaderTable title="Top BPM" players={players} showTeams={showTeams} />
       </div>
     </section>
   );

@@ -1,11 +1,16 @@
 import api from "../lib/api";
+import publicApi from "../lib/publicApi";
 import { parseNumber } from "../lib/gameResultsUtils";
 import { useState } from "react";
 import ExportResultsButton from "./ExportResultsButton";
 import GameResultsView from "./GameResultsView";
 import SaveGameForm from "./SaveGameForm";
 
-export default function UploadDual() {
+export default function UploadDual({ demoMode = false }) {
+  const requestApi = demoMode ? publicApi : api;
+  const calculatePath = demoMode ? "/boxscore-url" : "/upload-boxscore-url";
+  const singleUploadPath = demoMode ? "/boxscore" : "/upload-boxscore";
+  const dualUploadPath = demoMode ? "/boxscores" : "/upload-boxscores";
   const [uploadMode, setUploadMode] = useState("url"); // "url", "file", or "paste"
   const [homeFile, setHomeFile] = useState(null);
   const [awayFile, setAwayFile] = useState(null);
@@ -234,7 +239,7 @@ export default function UploadDual() {
     setAwayTotals(null);
 
     try {
-      const res = await api.post("/upload-boxscore-url", { url: gameUrl.trim() });
+      const res = await requestApi.post(calculatePath, { url: gameUrl.trim() });
       if (res.data?.home || res.data?.away) {
         setData({ home: res.data.home, away: res.data.away });
         setGameMeta(res.data.meta || null);
@@ -303,8 +308,8 @@ export default function UploadDual() {
         formData.append("home", home);
         formData.append("away", away);
 
-        const res = await api.post(
-          "/upload-boxscores",
+        const res = await requestApi.post(
+          dualUploadPath,
           formData
         );
 
@@ -318,8 +323,8 @@ export default function UploadDual() {
       } else {
         formData.append("file", home);
 
-        const res = await api.post(
-          "/upload-boxscore",
+        const res = await requestApi.post(
+          singleUploadPath,
           formData
         );
 
@@ -350,13 +355,14 @@ export default function UploadDual() {
     <div>
       <div style={{ marginBottom: '30px' }}>
         <h2 style={{ color: '#2c3e50', margin: '0 0 20px 0', fontSize: '1.8em' }}>
-          Upload Box Score
+          {demoMode ? "Try the Calculator (Demo)" : "Upload Box Score"}
         </h2>
         <div style={{ backgroundColor: '#e8f4fd', padding: '15px', borderRadius: '5px', marginBottom: '20px', border: '1px solid #bee5eb' }}>
           <h4 style={{ margin: '0 0 10px 0', color: '#000' }}>Supported Format:</h4>
           <p style={{ margin: 0, color: '#000', fontSize: '14px' }}>
-            Use NBL1 Auto Sync above for league games, upload CSVs, paste data, or load a single custom game from a box score URL.
-            The system will calculate advanced statistics including True Shooting %, Effective FG %, Usage Rate, and more.
+            {demoMode
+              ? "Paste a box score URL (NBL1 or NBL.com.au match pages), upload CSVs, or paste CSV data. Advanced stats are calculated instantly. Bounce the results to download as a CSV file."
+              : "Upload CSVs, paste data, or load a single custom game from a box score URL. The system will calculate advanced statistics including True Shooting %, Effective FG %, Usage Rate, and more."}
           </p>
         </div>
 
@@ -416,7 +422,7 @@ export default function UploadDual() {
               type="url"
               value={gameUrl}
               onChange={(e) => setGameUrl(e.target.value)}
-              placeholder="https://www.nbl1.com.au/games/... or other supported box score page"
+              placeholder="https://www.nbl1.com.au/games/... or https://www.nbl.com.au/matches/..."
               style={{
                 padding: '12px',
                 border: '2px dashed #16a085',
@@ -427,7 +433,7 @@ export default function UploadDual() {
               }}
             />
             <p style={{ margin: 0, color: '#56616b', fontSize: '13px' }}>
-              Load a single custom game from an NBL1 Game Centre link or other supported box score page.
+              Load a game from an NBL1 Game Centre link, an NBL.com.au match page, or other supported box score URL.
             </p>
             <button
               onClick={uploadFromUrl}
@@ -533,16 +539,18 @@ export default function UploadDual() {
             homeLabel={gameMeta?.home_team_name || "Home"}
             awayLabel={gameMeta?.away_team_name || "Away"}
           />
-          <SaveGameForm
-            results={data}
-            hasAwayTeam={Boolean(data.away)}
-            initialGameDate={gameMeta?.game_date || ""}
-            initialHomeTeamName={gameMeta?.home_team_name || ""}
-            initialAwayTeamName={gameMeta?.away_team_name || ""}
-            initialFixtureId={gameMeta?.fixture_id || ""}
-            initialSourceUrl={gameMeta?.source_url || ""}
-            initialProvider={gameMeta?.provider || ""}
-          />
+          {!demoMode && (
+            <SaveGameForm
+              results={data}
+              hasAwayTeam={Boolean(data.away)}
+              initialGameDate={gameMeta?.game_date || ""}
+              initialHomeTeamName={gameMeta?.home_team_name || ""}
+              initialAwayTeamName={gameMeta?.away_team_name || ""}
+              initialFixtureId={gameMeta?.fixture_id || ""}
+              initialSourceUrl={gameMeta?.source_url || ""}
+              initialProvider={gameMeta?.provider || ""}
+            />
+          )}
         </div>
       )}
     </div>

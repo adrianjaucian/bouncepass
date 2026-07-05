@@ -7,9 +7,10 @@ import { BUG_REPORT_MAILTO, CONTACT_MAILTO } from "../lib/contact";
 
 const NAV_ITEMS = [
   { href: "/", label: "Home", color: "#3498db" },
-  { href: "/saved-games", label: "Saved Games", color: "#2c3e50" },
-  { href: "/team-dashboard", label: "Team Dashboard", color: "#9b59b6" },
-  { href: "/player-dashboard", label: "Player Dashboard", color: "#e67e22" },
+  { href: "/saved-games", label: "Advanced Box Scores", color: "#2c3e50" },
+  { href: "/team-dashboard", label: "Team Metrics", color: "#9b59b6" },
+  { href: "/player-dashboard", label: "Player Metrics", color: "#e67e22" },
+  { href: "/scouting", label: "Head-To-Head Scouting", color: "#d4a017" },
   { href: "/metric-definitions", label: "Metric Definitions", color: "#16a085" },
 ];
 

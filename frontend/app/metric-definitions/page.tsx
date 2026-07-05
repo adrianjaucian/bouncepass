@@ -47,7 +47,7 @@ export default function MetricDefinitionsPage() {
         >
           <h1 style={{ color: "#2c3e50", margin: "0 0 10px 0", fontSize: "2.2em" }}>Metric Definitions</h1>
           <p style={{ color: "#7f8c8d", margin: 0, lineHeight: 1.5 }}>
-            Reference guide for statistics shown on the Team Dashboard and in uploaded box score results.
+            Reference guide for statistics shown on the Team Metrics page and in uploaded box score results.
             All minute-scaled rates use <strong>40-minute FIBA</strong> game length.
           </p>
         </header>
@@ -126,7 +126,7 @@ export default function MetricDefinitionsPage() {
           <p style={{ color: "#7f8c8d", fontSize: "14px", margin: 0, lineHeight: 1.6 }}>
             Return to the{" "}
             <Link href="/team-dashboard" style={{ color: "#3498db" }}>
-              Team Dashboard
+              Team Metrics
             </Link>{" "}
             or{" "}
             <Link href="/" style={{ color: "#3498db" }}>

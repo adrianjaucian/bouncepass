@@ -2,12 +2,11 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import PlayerComparison from "../../components/PlayerComparison";
 import PlayerDashboardDetail from "../../components/PlayerDashboardDetail";
 import PlayerLeagueLeaders from "../../components/PlayerLeagueLeaders";
 import SiteNav from "../../components/SiteNav";
 import api from "../../lib/api";
-import { GENDER_OPTIONS, REGION_OPTIONS } from "../../lib/gender";
+import { GENDER_OPTIONS, REGION_OPTIONS, decodeTeamOption, encodeTeamOption } from "../../lib/gender";
 
 type PlayerDashboard = {
   player_name: string;
@@ -21,7 +20,7 @@ type PlayerDashboard = {
   league_games: number;
 };
 
-const MAX_COMPARE_PLAYERS = 3;
+const BLANK_TEAM_FILTER = "";
 
 function PlayerDashboardContent() {
   const router = useRouter();
@@ -29,15 +28,16 @@ function PlayerDashboardContent() {
   const initialPlayer = searchParams.get("player") || "";
 
   const [players, setPlayers] = useState<string[]>([]);
+  const [teamOptions, setTeamOptions] = useState<
+    { name: string; gender?: string | null; region?: string | null; label: string }[]
+  >([]);
+  const [teamFilter, setTeamFilter] = useState(BLANK_TEAM_FILTER);
   const [genderFilter, setGenderFilter] = useState("");
   const [regionFilter, setRegionFilter] = useState("");
   const [search, setSearch] = useState(initialPlayer);
   const [selectedPlayer, setSelectedPlayer] = useState(initialPlayer);
   const [dashboard, setDashboard] = useState<PlayerDashboard | null>(null);
-  const [comparePlayers, setComparePlayers] = useState<string[]>([]);
-  const [compareDashboards, setCompareDashboards] = useState<PlayerDashboard[]>([]);
   const [loading, setLoading] = useState(false);
-  const [compareLoading, setCompareLoading] = useState(false);
   const [error, setError] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
 
@@ -59,6 +59,36 @@ function PlayerDashboardContent() {
     };
     loadPlayers();
   }, [filterParams]);
+
+  const selectedTeamFilter = useMemo(() => decodeTeamOption(teamFilter), [teamFilter]);
+
+  useEffect(() => {
+    const loadTeams = async () => {
+      try {
+        const params: Record<string, string> = {};
+        if (genderFilter) params.gender = genderFilter;
+        if (regionFilter) params.region = regionFilter;
+        const res = await api.get("/teams", { params });
+        const options = res.data?.options || [];
+        setTeamOptions(options);
+        if (teamFilter) {
+          const current = decodeTeamOption(teamFilter);
+          const stillValid = options.some(
+            (option: { name: string; gender?: string | null; region?: string | null }) =>
+              option.name === current.name &&
+              (option.gender || "") === current.gender &&
+              (option.region || "") === current.region,
+          );
+          if (!stillValid) {
+            setTeamFilter(BLANK_TEAM_FILTER);
+          }
+        }
+      } catch {
+        setTeamOptions([]);
+      }
+    };
+    loadTeams();
+  }, [genderFilter, regionFilter, teamFilter]);
 
   useEffect(() => {
     const query = initialPlayer.trim();
@@ -105,26 +135,6 @@ function PlayerDashboardContent() {
     loadDashboard();
   }, [selectedPlayer, fetchDashboard]);
 
-  useEffect(() => {
-    const loadComparison = async () => {
-      if (comparePlayers.length < 2) {
-        setCompareDashboards([]);
-        return;
-      }
-
-      setCompareLoading(true);
-      try {
-        const results = await Promise.all(comparePlayers.map((name) => fetchDashboard(name)));
-        setCompareDashboards(results.filter((item) => item?.stats));
-      } catch {
-        setCompareDashboards([]);
-      } finally {
-        setCompareLoading(false);
-      }
-    };
-    loadComparison();
-  }, [comparePlayers, fetchDashboard]);
-
   const filteredPlayers = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!query) return players.slice(0, 15);
@@ -160,33 +170,12 @@ function PlayerDashboardContent() {
     setSearch("");
     setSelectedPlayer("");
     setDashboard(null);
-    setComparePlayers([]);
-    setCompareDashboards([]);
     setError("");
     setShowSuggestions(false);
     router.replace("/player-dashboard");
   };
 
-  const addToCompare = (name: string) => {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    setComparePlayers((current) => {
-      if (current.includes(trimmed)) return current;
-      if (current.length >= MAX_COMPARE_PLAYERS) return current;
-      return [...current, trimmed];
-    });
-  };
-
-  const removeFromCompare = (name: string) => {
-    setComparePlayers((current) => current.filter((player) => player !== name));
-  };
-
-  const hasResults = Boolean(selectedPlayer.trim() || comparePlayers.length > 0 || dashboard || compareDashboards.length > 0);
-  const currentPlayerName = dashboard?.player_name ?? "";
-  const canAddCurrentToCompare =
-    currentPlayerName !== "" &&
-    !comparePlayers.includes(currentPlayerName) &&
-    comparePlayers.length < MAX_COMPARE_PLAYERS;
+  const hasResults = Boolean(selectedPlayer.trim() || dashboard);
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#f8f9fa", fontFamily: "Arial, sans-serif" }}>
@@ -201,7 +190,7 @@ function PlayerDashboardContent() {
             boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
           }}
         >
-          <h1 style={{ color: "#2c3e50", margin: "0 0 10px 0", fontSize: "2.2em" }}>Player Dashboard</h1>
+          <h1 style={{ color: "#2c3e50", margin: "0 0 10px 0", fontSize: "2.2em" }}>Player Metrics</h1>
           <p style={{ color: "#7f8c8d", margin: 0 }}>
             Season totals, per-game averages, advanced metrics, and league ranks across all saved box scores.
           </p>
@@ -257,6 +246,40 @@ function PlayerDashboardContent() {
                 {option.label}
               </button>
             ))}
+          </div>
+
+          <div style={{ marginBottom: "20px", maxWidth: "360px" }}>
+            <label htmlFor="team-leaders-filter" style={{ display: "block", marginBottom: "8px", color: "#2c3e50", fontWeight: "bold", fontSize: "14px" }}>
+              Filter season leaders by team
+            </label>
+            <select
+              id="team-leaders-filter"
+              value={teamFilter}
+              onChange={(event) => setTeamFilter(event.target.value)}
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                borderRadius: "6px",
+                border: "1px solid #d0d7de",
+                color: "#000",
+                backgroundColor: "#fff",
+                fontSize: "14px",
+              }}
+            >
+              <option value={BLANK_TEAM_FILTER}>All teams</option>
+              {teamOptions.map((option) => {
+                const value = encodeTeamOption(
+                  option.name,
+                  option.gender || genderFilter,
+                  option.region || regionFilter,
+                );
+                return (
+                  <option key={value} value={value}>
+                    {option.label || option.name}
+                  </option>
+                );
+              })}
+            </select>
           </div>
 
           <form onSubmit={handleSearchSubmit} style={{ marginBottom: "16px" }}>
@@ -333,22 +356,6 @@ function PlayerDashboardContent() {
                   </ul>
                 )}
               </div>
-              <button
-                type="button"
-                onClick={() => dashboard?.player_name && addToCompare(dashboard.player_name)}
-                disabled={!canAddCurrentToCompare}
-                style={{
-                  padding: "12px 20px",
-                  backgroundColor: canAddCurrentToCompare ? "#8e44ad" : "#bdc3c7",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "8px",
-                  fontWeight: "bold",
-                  cursor: canAddCurrentToCompare ? "pointer" : "not-allowed",
-                }}
-              >
-                {canAddCurrentToCompare ? "Add to compare" : "Compare full (3 max)"}
-              </button>
               {hasResults && (
                 <button
                   type="button"
@@ -374,80 +381,7 @@ function PlayerDashboardContent() {
             )}
           </form>
 
-          {comparePlayers.length > 0 && (
-            <div
-              style={{
-                marginBottom: "24px",
-                padding: "14px 16px",
-                backgroundColor: "#f9f4fd",
-                border: "1px solid #e8d4f4",
-                borderRadius: "8px",
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
-                <p style={{ margin: 0, color: "#56616b", fontSize: "14px" }}>
-                  Comparing {comparePlayers.length} of {MAX_COMPARE_PLAYERS} players
-                  {comparePlayers.length < 2 ? " — add at least one more to see side-by-side stats" : ""}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setComparePlayers([]);
-                    setCompareDashboards([]);
-                  }}
-                  style={{
-                    padding: "6px 12px",
-                    backgroundColor: "#fff",
-                    color: "#c0392b",
-                    border: "1px solid #e8d4f4",
-                    borderRadius: "6px",
-                    cursor: "pointer",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                  }}
-                >
-                  Clear comparison
-                </button>
-              </div>
-              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "10px" }}>
-                {comparePlayers.map((name) => (
-                  <span
-                    key={name}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      padding: "6px 10px",
-                      backgroundColor: "#fff",
-                      border: "1px solid #e8d4f4",
-                      borderRadius: "999px",
-                      fontSize: "13px",
-                      color: "#2c3e50",
-                    }}
-                  >
-                    {name}
-                    <button
-                      type="button"
-                      onClick={() => removeFromCompare(name)}
-                      aria-label={`Remove ${name} from comparison`}
-                      style={{
-                        border: "none",
-                        background: "transparent",
-                        color: "#c0392b",
-                        cursor: "pointer",
-                        fontWeight: "bold",
-                        padding: 0,
-                      }}
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {(loading || compareLoading) && <p style={{ color: "#56616b", marginBottom: "24px" }}>Loading player data...</p>}
+          {loading && <p style={{ color: "#56616b", marginBottom: "24px" }}>Loading player data...</p>}
 
           {error && (
             <div
@@ -464,21 +398,25 @@ function PlayerDashboardContent() {
             </div>
           )}
 
-          {comparePlayers.length >= 2 && compareDashboards.length >= 2 && !compareLoading && (
-            <PlayerComparison dashboards={compareDashboards} onRemovePlayer={removeFromCompare} />
-          )}
-
           {dashboard && !loading && (
-            <div style={{ marginBottom: "32px", paddingBottom: "8px", borderBottom: comparePlayers.length >= 2 ? "1px solid #e1e8ed" : "none" }}>
+            <div style={{ marginBottom: "32px", paddingBottom: "8px" }}>
               <PlayerDashboardDetail dashboard={dashboard} />
             </div>
           )}
 
-          {!selectedPlayer.trim() && !loading && !error && !comparePlayers.length && (
+          {!selectedPlayer.trim() && !loading && !error && (
             <p style={{ color: "#7f8c8d", margin: "0 0 24px 0" }}>Search for a player to view their dashboard.</p>
           )}
 
-          <PlayerLeagueLeaders gender={genderFilter} region={regionFilter} />
+          <PlayerLeagueLeaders
+            gender={genderFilter}
+            region={regionFilter}
+            teamName={selectedTeamFilter.name}
+            teamGender={selectedTeamFilter.gender}
+            teamRegion={selectedTeamFilter.region}
+            onSelectPlayer={selectPlayer}
+            selectedPlayer={selectedPlayer}
+          />
         </main>
       </div>
     </div>

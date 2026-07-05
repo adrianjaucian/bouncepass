@@ -4,8 +4,17 @@ import { useEffect, useState } from "react";
 import api from "../lib/api";
 import { formatCompetitionLabel } from "../lib/gender";
 import SeasonLeadersSection from "./SeasonLeadersSection";
+import TeamRosterSection from "./TeamRosterSection";
 
-export default function PlayerLeagueLeaders({ gender = "", region = "" }) {
+export default function PlayerLeagueLeaders({
+  gender = "",
+  region = "",
+  teamName = "",
+  teamGender = "",
+  teamRegion = "",
+  onSelectPlayer,
+  selectedPlayer = "",
+}) {
   const [leaders, setLeaders] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -18,6 +27,9 @@ export default function PlayerLeagueLeaders({ gender = "", region = "" }) {
         const params = {};
         if (gender) params.gender = gender;
         if (region) params.region = region;
+        if (teamName) params.team_name = teamName;
+        if (teamGender) params.team_gender = teamGender;
+        if (teamRegion) params.team_region = teamRegion;
         const res = await api.get("/players/leaders", { params });
         setLeaders(res.data);
       } catch (err) {
@@ -32,7 +44,7 @@ export default function PlayerLeagueLeaders({ gender = "", region = "" }) {
       }
     };
     loadLeaders();
-  }, [gender, region]);
+  }, [gender, region, teamName, teamGender, teamRegion]);
 
   if (loading) {
     return <p style={{ color: "#56616b", margin: "0 0 24px 0" }}>Loading league leaders...</p>;
@@ -55,21 +67,36 @@ export default function PlayerLeagueLeaders({ gender = "", region = "" }) {
     );
   }
 
-  if (!leaders?.players?.length) {
+  if (!leaders?.players?.length && !leaders?.roster?.length) {
     return null;
   }
 
   const competitionLabel = formatCompetitionLabel(gender, region);
+  const teamLabel = teamName
+    ? `${teamName}${teamGender ? ` (${teamGender === "women" ? "Women" : teamGender === "men" ? "Men" : teamGender})` : ""}`
+    : "";
   const titleSuffix = competitionLabel ? ` (${competitionLabel})` : "";
 
   return (
-    <SeasonLeadersSection
-      players={leaders.players}
-      title={`League Leaders${titleSuffix}`}
-      showTeams
-      description={`Top players across all teams from ${leaders.league_games} saved game${
-        leaders.league_games === 1 ? "" : "s"
-      }${competitionLabel ? ` in ${competitionLabel}` : ""} (${leaders.league_players} players). Only players with at least 50% of their team's games played qualify. Click a name to open their dashboard.`}
-    />
+    <>
+      {leaders.players?.length > 0 && (
+        <SeasonLeadersSection
+          players={leaders.players}
+          title={`League Leaders${teamName ? ` — ${teamLabel}` : ""}${titleSuffix}`}
+          showTeams
+          description={`Top players${teamName ? ` on ${teamName}` : " across all teams"} from ${leaders.league_games} saved game${
+            leaders.league_games === 1 ? "" : "s"
+          }${competitionLabel ? ` in ${competitionLabel}` : ""} (${leaders.league_players} players). Only players with at least 50% of their team's games played qualify. Click a name to open their dashboard.`}
+        />
+      )}
+      {teamName && leaders.roster?.length > 0 && (
+        <TeamRosterSection
+          players={leaders.roster}
+          teamLabel={teamLabel}
+          onSelectPlayer={onSelectPlayer}
+          selectedPlayer={selectedPlayer}
+        />
+      )}
+    </>
   );
 }

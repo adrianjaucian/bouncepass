@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import EditGameForm from "../../components/EditGameForm";
 import ExportSavedGameButton from "../../components/ExportSavedGameButton";
 import SiteNav from "../../components/SiteNav";
 import api from "../../lib/api";
@@ -33,7 +32,6 @@ export default function SavedGamesPage() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
-  const [editingGameId, setEditingGameId] = useState<number | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedTeamSearch(teamSearch.trim()), 300);
@@ -88,15 +86,9 @@ export default function SavedGamesPage() {
       await api.delete(`/games/${id}`);
       setGames((current) => current.filter((game) => game.id !== id));
       setTotal((current) => Math.max(0, current - 1));
-      if (editingGameId === id) setEditingGameId(null);
     } catch (err: any) {
       setError(err?.response?.data?.error || err?.message || "Could not delete game.");
     }
-  };
-
-  const handleGameUpdated = (updated: SavedGameSummary) => {
-    setGames((current) => current.map((game) => (game.id === updated.id ? { ...game, ...updated } : game)));
-    setEditingGameId(null);
   };
 
   const hasMore = games.length < total;
@@ -105,7 +97,7 @@ export default function SavedGamesPage() {
     <div style={{ minHeight: "100vh", backgroundColor: "#f8f9fa", fontFamily: "Arial, sans-serif" }}>
       <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "40px 20px" }}>
         <header style={{ textAlign: "center", marginBottom: "24px", backgroundColor: "#fff", padding: "30px", borderRadius: "10px", boxShadow: "0 2px 10px rgba(0,0,0,0.1)" }}>
-          <h1 style={{ color: "#2c3e50", margin: "0 0 10px 0", fontSize: "2.2em" }}>Saved Games</h1>
+          <h1 style={{ color: "#2c3e50", margin: "0 0 10px 0", fontSize: "2.2em" }}>Advanced Box Scores</h1>
           <p style={{ color: "#7f8c8d", margin: 0 }}>Browse games saved to your database. Teams are listed as Home Team vs Away Team</p>
         </header>
 
@@ -187,8 +179,8 @@ export default function SavedGamesPage() {
 
           {!loading && !error && total === 0 && (
             <p style={{ color: "#56616b" }}>
-              No saved games yet. Upload a box score on the{" "}
-              <Link href="/" style={{ color: "#3498db" }}>home page</Link> and use Save Game.
+              No games saved yet. Use the calculator on the{" "}
+              <Link href="/login" style={{ color: "#3498db" }}>login page</Link> or sync NBL1 fixtures from Home.
             </p>
           )}
 
@@ -279,21 +271,6 @@ export default function SavedGamesPage() {
                           View
                         </Link>
                         <button
-                          onClick={() => setEditingGameId(editingGameId === game.id ? null : game.id)}
-                          style={{
-                            padding: "10px 16px",
-                            backgroundColor: "#f39c12",
-                            color: "white",
-                            border: "none",
-                            borderRadius: "6px",
-                            cursor: "pointer",
-                            fontWeight: "bold",
-                            fontSize: "14px",
-                          }}
-                        >
-                          {editingGameId === game.id ? "Close Edit" : "Edit"}
-                        </button>
-                        <button
                           onClick={() => deleteGame(game.id)}
                           style={{
                             padding: "10px 16px",
@@ -310,13 +287,6 @@ export default function SavedGamesPage() {
                         </button>
                       </div>
                     </div>
-                    {editingGameId === game.id && (
-                      <EditGameForm
-                        game={game}
-                        onUpdated={handleGameUpdated}
-                        onCancel={() => setEditingGameId(null)}
-                      />
-                    )}
                   </div>
                 ))}
               </div>

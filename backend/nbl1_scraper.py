@@ -157,117 +157,7 @@ def extract_page_metadata(url: str, html: str) -> Dict[str, str]:
     }
 
 
-def iso_duration_to_mp(value: Any) -> str:
-    if value is None:
-        return "0:00"
-    raw = str(value).strip()
-    if not raw:
-        return "0:00"
-
-    match = re.match(r"^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?$", raw, re.I)
-    if not match:
-        return raw
-
-    hours = int(match.group(1) or 0)
-    minutes = int(match.group(2) or 0)
-    seconds = int(float(match.group(3) or 0))
-    total_minutes = hours * 60 + minutes + (1 if seconds >= 30 else 0)
-    display_seconds = 0 if seconds >= 30 else seconds
-    if seconds >= 30 and display_seconds == 0:
-        return f"{total_minutes}:00"
-    return f"{total_minutes}:{display_seconds:02d}"
-
-
-def _row_to_player_record(row: Dict[str, Any]) -> Dict[str, Any]:
-    stats = row.get("statistics") or {}
-    fg_pct = stats.get("fieldGoalsPercentage")
-    three_pct = stats.get("pointsThreePercentage")
-    ft_pct = stats.get("freeThrowsPercentage")
-
-    return {
-        "Player": row.get("personName") or "",
-        "MP": iso_duration_to_mp(stats.get("minutes")),
-        "PTS": stats.get("points", 0) or 0,
-        "FG": stats.get("fieldGoalsMade", 0) or 0,
-        "FGA": stats.get("fieldGoalsAttempted", 0) or 0,
-        "FG%": fg_pct if fg_pct is not None else 0,
-        "3P": stats.get("pointsThreeMade", 0) or 0,
-        "3PA": stats.get("pointsThreeAttempted", 0) or 0,
-        "3P%": three_pct if three_pct is not None else 0,
-        "FT": stats.get("freeThrowsMade", 0) or 0,
-        "FTA": stats.get("freeThrowsAttempted", 0) or 0,
-        "FT%": ft_pct if ft_pct is not None else 0,
-        "ORB": stats.get("reboundsOffensive", 0) or 0,
-        "DRB": stats.get("reboundsDefensive", 0) or 0,
-        "TRB": stats.get("rebounds", 0) or 0,
-        "AST": stats.get("assists", 0) or 0,
-        "STL": stats.get("steals", 0) or 0,
-        "BLK": stats.get("blocks", 0) or 0,
-        "TOV": stats.get("turnovers", 0) or 0,
-        "PF": stats.get("foulsTotal", 0) or 0,
-        "+/-": stats.get("plusMinus", 0) or 0,
-    }
-
-
-def team_boxscore_to_rows(team_data: Dict[str, Any]) -> List[Dict[str, Any]]:
-    rows: List[Dict[str, Any]] = []
-    for group in team_data.get("persons") or []:
-        for row in group.get("rows") or []:
-            if not row.get("participated"):
-                continue
-            if row.get("didNotPlayReason"):
-                continue
-            name = (row.get("personName") or "").strip()
-            if not name:
-                continue
-            rows.append(_row_to_player_record(row))
-    return rows
-
-
-def fetch_fixture_payload(fixture_id: str) -> Dict[str, Any]:
-    params = urllib.parse.urlencode(
-        {
-            "fixtureId": fixture_id,
-            "locale": "en-EN",
-            "sub": "statistics",
-        }
-    )
-    url = f"{EMBED_API_BASE}?{params}"
-    payload = _fetch_json(url)
-    data = payload.get("data") or {}
-    statistics = (data.get("statistics") or {}).get("data") or {}
-    base = statistics.get("base") or {}
-    home = base.get("home")
-    away = base.get("away")
-    if not home or not away:
-        raise Nbl1ScrapeError("Box score is not available for this game yet")
-
-    banner = data.get("banner") or {}
-    fixture = banner.get("fixture") or {}
-    competitors = fixture.get("competitors") or []
-    home_name = ""
-    away_name = ""
-    for competitor in competitors:
-        if competitor.get("isHome"):
-            home_name = competitor.get("name") or home_name
-        else:
-            away_name = competitor.get("name") or away_name
-
-    start_time = fixture.get("startTimeLocal") or fixture.get("startTime")
-    game_date = ""
-    if start_time:
-        try:
-            game_date = datetime.fromisoformat(str(start_time).replace("Z", "+00:00")).strftime("%Y-%m-%d")
-        except ValueError:
-            game_date = str(start_time)[:10]
-
-    return {
-        "home_rows": team_boxscore_to_rows(home),
-        "away_rows": team_boxscore_to_rows(away),
-        "home_team_name": home_name,
-        "away_team_name": away_name,
-        "game_date": game_date,
-    }
+from embed_fixture import fetch_fixture_payload, iso_duration_to_mp, team_boxscore_to_rows
 
 
 def scrape_nbl1_fixture(fixture_id: str) -> Tuple[pd.DataFrame, pd.DataFrame, Dict[str, str]]:
@@ -275,7 +165,7 @@ def scrape_nbl1_fixture(fixture_id: str) -> Tuple[pd.DataFrame, pd.DataFrame, Di
     if not re.fullmatch(r"[0-9a-f-]{36}", fixture_id, re.I):
         raise Nbl1ScrapeError("Invalid NBL1 fixture ID")
 
-    fixture_payload = fetch_fixture_payload(fixture_id)
+    fixture_payload = fetch_fixture_payload(fixture_id, WEBSITE_ID)
     home_df = pd.DataFrame(fixture_payload["home_rows"])
     away_df = pd.DataFrame(fixture_payload["away_rows"])
     if home_df.empty or away_df.empty:

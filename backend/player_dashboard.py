@@ -114,6 +114,7 @@ def _accumulate_player_row(
     team_name: str,
     opponent_name: Optional[str],
     gender: Optional[str] = None,
+    region: Optional[str] = None,
 ) -> None:
     mp_mins = parse_mp_to_minutes(row.get("MP"))
     if mp_mins <= 0 and row.get("MP_mins") is not None:
@@ -205,6 +206,8 @@ def _accumulate_player_row(
             "team_name": team_name,
             "team_label": format_team_gender_short(team_name, gender),
             "opponent": opponent_name,
+            "gender": normalize_gender(gender),
+            "region": normalize_region(region),
             "mp_mins": round(mp_mins, 1),
             "pts": int(pts),
             "trb": int(trb),
@@ -306,10 +309,16 @@ def build_league_players(
     games: List[Any],
     gender: Optional[str] = None,
     region: Optional[str] = None,
+    team_name: Optional[str] = None,
+    team_gender: Optional[str] = None,
+    team_region: Optional[str] = None,
 ) -> Tuple[List[Dict[str, Any]], int]:
     games = filter_games_by_gender(games, gender)
     games = filter_games_by_region(games, region)
     players: Dict[str, Dict[str, Any]] = {}
+    team_filter = (team_name or "").strip().lower()
+    team_gender_filter = normalize_gender(team_gender) if team_gender else None
+    team_region_filter = normalize_region(team_region) if team_region else None
 
     for game in games:
         results = json.loads(game.results_json)
@@ -318,8 +327,14 @@ def build_league_players(
             ("away", game.away_team_name, game.home_team_name),
         ]
 
-        for side, team_name, opponent_name in sides:
-            if not team_name:
+        for side, side_team_name, opponent_name in sides:
+            if not side_team_name:
+                continue
+            if team_filter and str(side_team_name).strip().lower() != team_filter:
+                continue
+            if team_gender_filter and normalize_gender(getattr(game, "gender", None)) != team_gender_filter:
+                continue
+            if team_region_filter and normalize_region(getattr(game, "region", None)) != team_region_filter:
                 continue
             rows = filter_player_rows(results.get(side))
             if not rows:
@@ -335,9 +350,10 @@ def build_league_players(
                     index,
                     game_id=game.id,
                     game_date=game.game_date,
-                    team_name=str(team_name).strip(),
+                    team_name=str(side_team_name).strip(),
                     opponent_name=str(opponent_name).strip() if opponent_name else None,
                     gender=normalize_gender(getattr(game, "gender", None)),
+                    region=normalize_region(getattr(game, "region", None)),
                 )
 
     player_list = [_finalize_player_bucket(bucket) for bucket in players.values()]
@@ -363,14 +379,37 @@ def assign_league_ranks(players: List[Dict[str, Any]]) -> None:
             player["ranks"][rank_key] = {"rank": rank, "of": total}
 
 
-def collect_player_names(games: List[Any]) -> List[str]:
+def collect_player_names(
+    games: List[Any],
+    team_name: Optional[str] = None,
+    team_gender: Optional[str] = None,
+    team_region: Optional[str] = None,
+) -> List[str]:
+    team_filter = (team_name or "").strip().lower()
+    team_gender_filter = normalize_gender(team_gender) if team_gender else None
+    team_region_filter = normalize_region(team_region) if team_region else None
     names = set()
+
     for game in games:
         results = json.loads(game.results_json)
-        for side in ("home", "away"):
+        sides = [
+            ("home", game.home_team_name),
+            ("away", game.away_team_name),
+        ]
+
+        for side, side_team_name in sides:
+            if not side_team_name:
+                continue
+            if team_filter and str(side_team_name).strip().lower() != team_filter:
+                continue
+            if team_gender_filter and normalize_gender(getattr(game, "gender", None)) != team_gender_filter:
+                continue
+            if team_region_filter and normalize_region(getattr(game, "region", None)) != team_region_filter:
+                continue
             rows = filter_player_rows(results.get(side))
             for index, row in enumerate(rows):
                 names.add(get_player_name(row, index))
+
     return sorted(names, key=lambda value: value.lower())
 
 
@@ -402,22 +441,44 @@ def build_league_leader_players(
     games: List[Any],
     gender: Optional[str] = None,
     region: Optional[str] = None,
+    team_name: Optional[str] = None,
+    team_gender: Optional[str] = None,
+    team_region: Optional[str] = None,
 ) -> Dict[str, Any]:
-    player_list, league_games = build_league_players(games, gender=gender, region=region)
+    player_list, league_games = build_league_players(
+        games,
+        gender=gender,
+        region=region,
+        team_name=team_name,
+        team_gender=team_gender,
+        team_region=team_region,
+    )
     leader_players = filter_leader_eligible_players(
         player_list,
         games,
         gender=gender,
         region=region,
+        team_name=team_name,
+        team_gender=team_gender,
+        team_region=team_region,
     )
     slim_players = []
     for player in leader_players:
         slim = {key: value for key, value in player.items() if key != "game_log"}
         slim_players.append(slim)
+
+    roster = None
+    if team_name:
+        roster = [
+            {key: value for key, value in player.items() if key != "game_log"}
+            for player in sorted(player_list, key=lambda item: item["player"].lower())
+        ]
+
     return {
         "league_players": len(slim_players),
         "league_games": league_games,
         "players": slim_players,
+        "roster": roster,
     }
 
 

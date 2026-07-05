@@ -330,6 +330,8 @@ class PlayerDashboardGame(BaseModel):
     team_name: str
     team_label: Optional[str] = None
     opponent: Optional[str] = None
+    gender: Optional[str] = None
+    region: Optional[str] = None
     mp_mins: float
     pts: int
     trb: int
@@ -371,6 +373,7 @@ class PlayerLeagueLeadersResponse(BaseModel):
     league_players: int
     league_games: int
     players: List[PlayerDashboardStats]
+    roster: Optional[List[PlayerDashboardStats]] = None
 
 
 class BoxScoreUrlRequest(BaseModel):

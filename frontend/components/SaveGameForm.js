@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import api from "../lib/api";
 import { GENDER_OPTIONS, REGION_OPTIONS } from "../lib/gender";
 
@@ -13,7 +14,9 @@ export default function SaveGameForm({
   initialFixtureId = "",
   initialSourceUrl = "",
   initialProvider = "",
+  requireAuth = false,
 }) {
+  const router = useRouter();
   const today = new Date().toISOString().slice(0, 10);
   const [gameDate, setGameDate] = useState(initialGameDate || today);
   const [homeTeamName, setHomeTeamName] = useState(initialHomeTeamName || "");
@@ -34,6 +37,22 @@ export default function SaveGameForm({
 
   const saveGame = async () => {
     if (!results) return;
+
+    if (requireAuth) {
+      try {
+        const authRes = await fetch("/api/auth/me");
+        if (!authRes.ok) {
+          setError("Sign in to save this game to your account.");
+          router.push("/login?from=/");
+          return;
+        }
+      } catch {
+        setError("Sign in to save this game to your account.");
+        router.push("/login?from=/");
+        return;
+      }
+    }
+
     if (!gameDate.trim() || !homeTeamName.trim()) {
       setError("Date and home team name are required.");
       return;
@@ -65,7 +84,7 @@ export default function SaveGameForm({
       if (initialProvider) payload.provider = initialProvider;
 
       const res = await api.post("/games", payload);
-      setMessage(`Game saved (ID ${res.data.id}). View it on the Saved Games page.`);
+      setMessage(`Game saved (ID ${res.data.id}). View it on Advanced Box Scores.`);
     } catch (err) {
       const serverMessage =
         err?.response?.data?.error ||
@@ -80,7 +99,14 @@ export default function SaveGameForm({
 
   return (
     <div style={{ marginTop: '24px', padding: '20px', backgroundColor: '#f4f8fb', borderRadius: '8px', border: '1px solid #d6e4f0' }}>
-      <h3 style={{ margin: '0 0 16px 0', color: '#2c3e50' }}>Save Game</h3>
+      <h3 style={{ margin: '0 0 16px 0', color: '#2c3e50' }}>
+        {requireAuth ? "Bounce — Save to Your Account" : "Save Game"}
+      </h3>
+      {requireAuth && (
+        <p style={{ margin: '0 0 12px 0', color: '#56616b', fontSize: '13px' }}>
+          Sign in first to store this box score in your database.
+        </p>
+      )}
       <div style={{ display: 'grid', gap: '12px', maxWidth: '520px' }}>
         <label style={{ display: 'grid', gap: '6px', color: '#000', fontSize: '14px' }}>
           Competition
@@ -156,7 +182,7 @@ export default function SaveGameForm({
             width: 'fit-content',
           }}
         >
-          {saving ? 'Saving...' : 'Save to Database'}
+          {saving ? 'Saving...' : requireAuth ? 'Bounce' : 'Save to Database'}
         </button>
       </div>
       {message && (

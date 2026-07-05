@@ -166,7 +166,7 @@ export default function SavedGameDetailPage() {
           {!loading && !error && (
             <div style={{ marginTop: "24px" }}>
               <Link href="/saved-games" style={{ color: "#3498db", fontWeight: "bold" }}>
-                ← Back to Saved Games
+                ← Back to Advanced Box Scores
               </Link>
             </div>
           )}

@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import SiteNav from "../../components/SiteNav";
 import SeasonLeadersSection from "../../components/SeasonLeadersSection";
+import TeamDashboardLink from "../../components/TeamDashboardLink";
 import TeamLeagueLeaders from "../../components/TeamLeagueLeaders";
 import TrendCharts, { TEAM_FEATURED_TREND_STAT, TEAM_TREND_STATS } from "../../components/TrendCharts";
 import api from "../../lib/api";
@@ -173,7 +175,8 @@ function MetricCard({
   );
 }
 
-export default function TeamDashboardPage() {
+function TeamDashboardContent() {
+  const searchParams = useSearchParams();
   const [teamOptions, setTeamOptions] = useState<TeamOption[]>([]);
   const [teamSelection, setTeamSelection] = useState(BLANK_TEAM_SELECTION);
   const [genderFilter, setGenderFilter] = useState("men");
@@ -184,6 +187,34 @@ export default function TeamDashboardPage() {
 
   const selectedTeam = decodeTeamOption(teamSelection);
   const hasTeamSelected = Boolean(selectedTeam.name.trim() && selectedTeam.gender && selectedTeam.region);
+
+  const fetchTeamDashboard = useCallback(
+    async (team: { name: string; gender: string; region: string }) => {
+      const res = await api.get("/teams/dashboard", {
+        params: {
+          team_name: team.name.trim(),
+          gender: team.gender,
+          region: team.region,
+        },
+      });
+      return res.data as TeamDashboard;
+    },
+    [],
+  );
+
+  useEffect(() => {
+    const teamParam = searchParams.get("team");
+    if (!teamParam) return;
+
+    const decoded = decodeTeamOption(teamParam);
+    if (!decoded.name || !decoded.gender || !decoded.region) return;
+
+    if (decoded.gender === "men" || decoded.gender === "women") {
+      setGenderFilter(decoded.gender);
+    }
+    setRegionFilter(decoded.region);
+    setTeamSelection(encodeTeamOption(decoded.name, decoded.gender, decoded.region));
+  }, [searchParams]);
 
   useEffect(() => {
     const loadTeams = async () => {
@@ -231,14 +262,12 @@ export default function TeamDashboardPage() {
       setError("");
       setDashboard(null);
       try {
-        const res = await api.get("/teams/dashboard", {
-          params: {
-            team_name: selectedTeam.name.trim(),
-            gender: selectedTeam.gender,
-            region: selectedTeam.region,
-          },
+        const data = await fetchTeamDashboard({
+          name: selectedTeam.name.trim(),
+          gender: selectedTeam.gender!,
+          region: selectedTeam.region!,
         });
-        setDashboard(res.data);
+        setDashboard(data);
       } catch (err: any) {
         const message =
           err?.response?.data?.detail ||
@@ -251,7 +280,7 @@ export default function TeamDashboardPage() {
       }
     };
     loadDashboard();
-  }, [teamSelection, hasTeamSelected, selectedTeam.name, selectedTeam.gender, selectedTeam.region]);
+  }, [teamSelection, hasTeamSelected, selectedTeam.name, selectedTeam.gender, selectedTeam.region, fetchTeamDashboard]);
 
   const handleSelectTeamFromLeaders = (team: {
     team_name: string;
@@ -283,7 +312,7 @@ export default function TeamDashboardPage() {
             boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
           }}
         >
-          <h1 style={{ color: "#2c3e50", margin: "0 0 10px 0", fontSize: "2.2em" }}>Team Dashboard</h1>
+          <h1 style={{ color: "#2c3e50", margin: "0 0 10px 0", fontSize: "2.2em" }}>Team Metrics</h1>
           <p style={{ color: "#7f8c8d", margin: 0 }}>
             Season leaders across the league, or drill into one men&apos;s or women&apos;s team in a specific NBL1 region
           </p>
@@ -392,8 +421,10 @@ export default function TeamDashboardPage() {
           {hasTeamSelected && dashboard && !loading && (
             <>
               <div style={{ marginBottom: "28px" }}>
-                <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap", marginBottom: "8px" }}>
-                  <h2 style={{ margin: 0, color: "#2c3e50" }}>{dashboard.team_label || dashboard.team_name}</h2>
+                <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", marginBottom: "8px" }}>
+                  <h1 style={{ margin: 0, color: "#2c3e50", fontSize: "2.2em", fontWeight: "bold", lineHeight: 1.15 }}>
+                    {dashboard.team_name}
+                  </h1>
                   {dashboard.gender && (
                     <span
                       style={{
@@ -420,6 +451,23 @@ export default function TeamDashboardPage() {
                       {formatRegionLabel(dashboard.region)}
                     </span>
                   )}
+                  <Link
+                    href={`/scouting?tab=team&team=${encodeURIComponent(
+                      encodeTeamOption(dashboard.team_name, dashboard.gender || "", dashboard.region || ""),
+                    )}`}
+                    style={{
+                      padding: "6px 12px",
+                      backgroundColor: "#fff9e6",
+                      color: "#b8860b",
+                      border: "1px solid #f5d76e",
+                      borderRadius: "6px",
+                      textDecoration: "none",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Add to compare
+                  </Link>
                 </div>
                 <p style={{ margin: 0, color: "#56616b" }}>
                   {dashboard.games_played} saved game{dashboard.games_played === 1 ? "" : "s"} · Record{" "}
@@ -524,6 +572,7 @@ export default function TeamDashboardPage() {
                         <th style={{ ...tableHeaderStyle, textAlign: "left" }}>Opponent</th>
                         <th style={{ ...tableHeaderStyle, textAlign: "center" }}>Result</th>
                         <th style={{ ...tableHeaderStyle, textAlign: "center" }}>Side</th>
+                        <th style={{ ...tableHeaderStyle, textAlign: "left" }}>View game</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -543,7 +592,18 @@ export default function TeamDashboardPage() {
                         return (
                           <tr key={game.id} style={{ backgroundColor: index % 2 === 0 ? "#fff" : "#fafbfc" }}>
                             <td style={{ padding: "10px", color: "#000" }}>{game.game_date}</td>
-                            <td style={{ padding: "10px", color: "#000" }}>{game.opponent || "—"}</td>
+                            <td style={{ padding: "10px", color: "#000" }}>
+                              {game.opponent ? (
+                                <TeamDashboardLink
+                                  teamName={game.opponent}
+                                  gender={dashboard.gender}
+                                  region={dashboard.region}
+                                  label={game.opponent}
+                                />
+                              ) : (
+                                "—"
+                              )}
+                            </td>
                             <td
                               style={{
                                 padding: "10px",
@@ -557,6 +617,11 @@ export default function TeamDashboardPage() {
                             <td style={{ padding: "10px", textAlign: "center", color: "#000" }}>
                               {game.side === "home" ? "Home" : "Away"}
                             </td>
+                            <td style={{ padding: "10px" }}>
+                              <Link href={`/saved-games/${game.id}`} style={{ color: "#3498db", textDecoration: "none", fontWeight: 500 }}>
+                                View game
+                              </Link>
+                            </td>
                           </tr>
                         );
                       })}
@@ -568,7 +633,7 @@ export default function TeamDashboardPage() {
               <p style={{ color: "#7f8c8d", fontSize: "13px", margin: 0 }}>
                 Data comes from{" "}
                 <Link href="/saved-games" style={{ color: "#3498db" }}>
-                  saved games
+                  Advanced Box Scores
                 </Link>
                 . Save more box scores to grow this dashboard.
               </p>
@@ -577,5 +642,13 @@ export default function TeamDashboardPage() {
         </main>
       </div>
     </div>
+  );
+}
+
+export default function TeamDashboardPage() {
+  return (
+    <Suspense>
+      <TeamDashboardContent />
+    </Suspense>
   );
 }

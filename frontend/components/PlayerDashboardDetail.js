@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo } from "react";
 import TrendCharts from "./TrendCharts";
+import TeamDashboardLink from "./TeamDashboardLink";
+import { formatGenderLabel, formatRegionLabel, genderBadgeStyle, regionBadgeStyle } from "../lib/gender";
 
 function formatPercent(value) {
   return value == null ? "—" : `${(value * 100).toFixed(1)}%`;
@@ -46,8 +49,32 @@ const tableHeaderStyle = {
   fontWeight: "bold",
 };
 
+const selectedHeadingStyle = {
+  margin: 0,
+  color: "#2c3e50",
+  fontSize: "2.2em",
+  fontWeight: "bold",
+  lineHeight: 1.15,
+};
+
+function getPlayerTeamContexts(games) {
+  const contexts = new Map();
+  for (const game of games || []) {
+    const gender = game.gender;
+    const region = game.region;
+    if (!gender && !region) continue;
+    const key = `${gender || ""}:${region || ""}`;
+    if (!contexts.has(key)) {
+      contexts.set(key, { gender, region });
+    }
+  }
+  return Array.from(contexts.values());
+}
+
 export default function PlayerDashboardDetail({ dashboard }) {
   const stats = dashboard?.stats;
+  const teamContexts = useMemo(() => getPlayerTeamContexts(dashboard?.games), [dashboard?.games]);
+
   if (!dashboard || !stats) return null;
 
   const ranks = stats.ranks || {};
@@ -55,7 +82,54 @@ export default function PlayerDashboardDetail({ dashboard }) {
   return (
     <>
       <div style={{ marginBottom: "28px" }}>
-        <h2 style={{ margin: "0 0 8px 0", color: "#2c3e50" }}>{dashboard.player_name}</h2>
+        <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", marginBottom: "8px" }}>
+          <h1 style={selectedHeadingStyle}>{dashboard.player_name}</h1>
+          {teamContexts.map((context) => (
+            <span key={`${context.gender || "all"}-${context.region || "all"}`} style={{ display: "inline-flex", gap: "8px", flexWrap: "wrap" }}>
+              {context.gender && (
+                <span
+                  style={{
+                    ...genderBadgeStyle(context.gender),
+                    fontSize: "12px",
+                    fontWeight: 700,
+                    padding: "4px 10px",
+                    borderRadius: "999px",
+                  }}
+                >
+                  {formatGenderLabel(context.gender)}
+                </span>
+              )}
+              {context.region && (
+                <span
+                  style={{
+                    ...regionBadgeStyle(context.region),
+                    fontSize: "12px",
+                    fontWeight: 700,
+                    padding: "4px 10px",
+                    borderRadius: "999px",
+                  }}
+                >
+                  {formatRegionLabel(context.region)}
+                </span>
+              )}
+            </span>
+          ))}
+          <Link
+            href={`/scouting?tab=player&player=${encodeURIComponent(dashboard.player_name)}`}
+            style={{
+              padding: "6px 12px",
+              backgroundColor: "#fff9e6",
+              color: "#b8860b",
+              border: "1px solid #f5d76e",
+              borderRadius: "6px",
+              textDecoration: "none",
+              fontSize: "13px",
+              fontWeight: 600,
+            }}
+          >
+            Add to compare
+          </Link>
+        </div>
         <p style={{ margin: 0, color: "#56616b" }}>
           {dashboard.games_played} game{dashboard.games_played === 1 ? "" : "s"} · {stats.mp_mins.toFixed(1)} min ·{" "}
           {dashboard.teams.join(", ") || "—"}
@@ -152,8 +226,21 @@ export default function PlayerDashboardDetail({ dashboard }) {
               {dashboard.games.map((game, index) => (
                 <tr key={`${game.game_id}-${index}`} style={{ backgroundColor: index % 2 === 0 ? "#fff" : "#fafbfc" }}>
                   <td style={{ padding: "10px", color: "#000" }}>{game.game_date}</td>
-                  <td style={{ padding: "10px", color: "#000" }}>{game.team_label || game.team_name}</td>
-                  <td style={{ padding: "10px", color: "#000" }}>{game.opponent || "—"}</td>
+                  <td style={{ padding: "10px", color: "#000" }}>
+                    <TeamDashboardLink
+                      teamName={game.team_name}
+                      gender={game.gender}
+                      region={game.region}
+                      label={game.team_label || game.team_name}
+                    />
+                  </td>
+                  <td style={{ padding: "10px", color: "#000" }}>
+                    <TeamDashboardLink
+                      teamName={game.opponent}
+                      gender={game.gender}
+                      region={game.region}
+                    />
+                  </td>
                   <td style={{ padding: "10px", textAlign: "center", color: "#000" }}>{game.mp_mins.toFixed(1)}</td>
                   <td style={{ padding: "10px", textAlign: "center", color: "#000", fontWeight: "bold" }}>{game.pts}</td>
                   <td style={{ padding: "10px", textAlign: "center", color: "#000" }}>{game.trb}</td>

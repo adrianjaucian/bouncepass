@@ -343,6 +343,108 @@ def upload_nbl1_url_legacy(body: BoxScoreUrlRequest) -> Any:
     return upload_boxscore_url(body)
 
 
+@app.post("/calculate/boxscore")
+async def calculate_boxscore(file: UploadFile = File(...)) -> Any:
+    df, error = await parse_uploaded_csv(file)
+    if error:
+        return JSONResponse(status_code=400, content=error)
+    if df is None:
+        return JSONResponse(status_code=400, content={"error": "Failed to process uploaded file"})
+
+    missing = validate_required_columns(df)
+    if missing:
+        return JSONResponse(
+            status_code=400,
+            content={"error": f"Missing columns: {missing}", "columns_found": df.columns.tolist()},
+        )
+
+    try:
+        return calculate_stats(df)
+    except Exception as exc:
+        return JSONResponse(status_code=500, content={"error": "Could not calculate stats", "details": str(exc)})
+
+
+@app.post("/calculate/boxscores")
+async def calculate_boxscores(
+    home: UploadFile = File(...),
+    away: UploadFile = File(...),
+) -> Any:
+    home_df, home_error = await parse_uploaded_csv(home)
+    if home_error:
+        return JSONResponse(status_code=400, content={"which": "home", **home_error})
+    away_df, away_error = await parse_uploaded_csv(away)
+    if away_error:
+        return JSONResponse(status_code=400, content={"which": "away", **away_error})
+
+    if home_df is None or away_df is None:
+        return JSONResponse(status_code=400, content={"error": "Upload parsing failed"})
+
+    missing_home = validate_required_columns(home_df)
+    missing_away = validate_required_columns(away_df)
+    if missing_home or missing_away:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": "Missing columns",
+                "missing_home": missing_home,
+                "missing_away": missing_away,
+                "home_columns": home_df.columns.tolist(),
+                "away_columns": away_df.columns.tolist(),
+            },
+        )
+
+    try:
+        home_team_stats = build_team_stats(home_df)
+        away_team_stats = build_team_stats(away_df)
+        home_rows = calculate_stats(home_df, opponent_stats=away_team_stats)
+        away_rows = calculate_stats(away_df, opponent_stats=home_team_stats)
+    except Exception as exc:
+        return JSONResponse(status_code=500, content={"error": "Could not calculate stats", "details": str(exc)})
+
+    return {"home": home_rows, "away": away_rows}
+
+
+@app.post("/calculate/boxscore-url", response_model=BoxScoreUrlResponse)
+def calculate_boxscore_url(body: BoxScoreUrlRequest) -> Any:
+    try:
+        home_df, away_df, meta = scrape_game_from_url(body.url)
+    except UrlScrapeError as exc:
+        return JSONResponse(status_code=400, content={"error": str(exc)})
+
+    missing_home = validate_required_columns(home_df)
+    missing_away = validate_required_columns(away_df)
+    if missing_home or missing_away:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": "Scraped box score is missing required columns",
+                "missing_home": missing_home,
+                "missing_away": missing_away,
+            },
+        )
+
+    try:
+        home_team_stats = build_team_stats(home_df)
+        away_team_stats = build_team_stats(away_df)
+        home_rows = calculate_stats(home_df, opponent_stats=away_team_stats)
+        away_rows = calculate_stats(away_df, opponent_stats=home_team_stats)
+    except Exception as exc:
+        return JSONResponse(status_code=500, content={"error": "Could not calculate stats", "details": str(exc)})
+
+    return BoxScoreUrlResponse(
+        home=home_rows,
+        away=away_rows,
+        meta=BoxScoreUrlMeta(
+            home_team_name=meta.get("home_team_name") or "Home",
+            away_team_name=meta.get("away_team_name") or "Away",
+            game_date=meta.get("game_date") or "",
+            fixture_id=meta.get("fixture_id") or "",
+            source_url=meta.get("source_url") or body.url.strip(),
+            provider=meta.get("provider"),
+        ),
+    )
+
+
 @app.post("/games", response_model=GameDetail)
 def save_game(
     game_in: GameSaveRequest,
@@ -583,6 +685,9 @@ def team_leaders(
 def list_players(
     gender: Optional[str] = None,
     region: Optional[str] = None,
+    team_name: Optional[str] = None,
+    team_gender: Optional[str] = None,
+    team_region: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> PlayerListResponse:
@@ -593,13 +698,23 @@ def list_players(
     )
     filtered = filter_games_by_gender(games, gender)
     filtered = filter_games_by_region(filtered, region)
-    return PlayerListResponse(players=collect_player_names(filtered))
+    return PlayerListResponse(
+        players=collect_player_names(
+            filtered,
+            team_name=team_name.strip() if team_name else None,
+            team_gender=normalize_gender(team_gender),
+            team_region=normalize_region(team_region),
+        )
+    )
 
 
 @app.get("/players/leaders", response_model=PlayerLeagueLeadersResponse)
 def player_leaders(
     gender: Optional[str] = None,
     region: Optional[str] = None,
+    team_name: Optional[str] = None,
+    team_gender: Optional[str] = None,
+    team_region: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> PlayerLeagueLeadersResponse:
@@ -612,6 +727,9 @@ def player_leaders(
         games,
         gender=normalize_gender(gender),
         region=normalize_region(region),
+        team_name=team_name.strip() if team_name else None,
+        team_gender=normalize_gender(team_gender),
+        team_region=normalize_region(team_region),
     )
     return PlayerLeagueLeadersResponse(**payload)
 

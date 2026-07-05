@@ -39,7 +39,7 @@ export default function PlayerComparison({ dashboards, onRemovePlayer }) {
     <section style={{ marginBottom: "32px" }}>
       <h3 style={{ margin: "0 0 8px 0", color: "#2c3e50" }}>Player Comparison</h3>
       <p style={{ margin: "0 0 16px 0", color: "#7f8c8d", fontSize: "14px" }}>
-        Side-by-side season stats for selected players (up to 3).
+        Side-by-side season stats for selected players (up to 5).
       </p>
       <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px", border: "1px solid #e1e8ed", minWidth: "520px" }}>
