@@ -227,6 +227,29 @@ def save_synced_game(
         gender=gender,
     )
     if legacy:
+        conflicting = (
+            db.query(SavedGame)
+            .filter(SavedGame.user_id == user_id, SavedGame.fixture_id == fixture_id)
+            .first()
+        )
+        if conflicting and conflicting.id != legacy.id:
+            db.delete(legacy)
+            db.flush()
+            upgrade_saved_game_from_sync(
+                conflicting,
+                results=results,
+                fixture_id=fixture_id,
+                source_url=source_url,
+                gender=gender,
+                region=region,
+                game_date=game_date,
+                home_team_name=home_team_name,
+                away_team_name=away_team_name,
+            )
+            db.commit()
+            db.refresh(conflicting)
+            return conflicting
+
         upgrade_saved_game_from_sync(
             legacy,
             results=results,
@@ -379,8 +402,10 @@ def sync_nbl1_fixtures(
                 )
             )
         except Nbl1ScrapeError as exc:
+            db.rollback()
             errors.append({"fixture_id": fixture_id, "label": label, "error": str(exc)})
         except Exception as exc:  # pragma: no cover - defensive guard for unexpected scrape failures
+            db.rollback()
             errors.append({"fixture_id": fixture_id, "label": label, "error": str(exc)})
 
         if delay_seconds and index < len(batch) - 1:
