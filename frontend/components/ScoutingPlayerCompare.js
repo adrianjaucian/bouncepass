@@ -86,7 +86,7 @@ export default function ScoutingPlayerCompare({ initialComparePlayers = [] }) {
       });
       return res.data;
     },
-    [genderFilter, regionFilter],
+    [genderFilter, regionFilter, teamFilter],
   );
 
   useEffect(() => {

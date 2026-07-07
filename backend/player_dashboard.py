@@ -394,6 +394,7 @@ def collect_player_names(
     team_filter = (team_name or "").strip().lower()
     team_gender_filter = normalize_gender(team_gender) if team_gender else None
     team_region_filter = normalize_region(team_region) if team_region else None
+    parsed_results = parse_game_results(games)
     names = set()
 
     for game in games:
