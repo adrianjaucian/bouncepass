@@ -2,40 +2,34 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-FRONTEND="$ROOT/frontend"
-BACKEND="$ROOT/backend"
 
 echo "=== Bounce PASS deploy helper ==="
 echo ""
 
-if [[ -z "${VERCEL_TOKEN:-}" ]]; then
-  echo "Frontend (Vercel):"
-  echo "  1. cd frontend && npx vercel login"
-  echo "  2. npx vercel link"
-  echo "  3. Set env vars in Vercel dashboard (Production):"
-  echo "       API_URL=https://api.bouncepass.net"
-  echo "       AUTH_SECRET=<same-as-render-JWT_SECRET>"
-  echo "  4. npx vercel --prod"
-  echo "  5. Add bouncepass.net in Vercel → Settings → Domains"
+missing=()
+[[ -z "${VERCEL_TOKEN:-}" ]] && missing+=("VERCEL_TOKEN")
+[[ -z "${RENDER_API_KEY:-}" ]] && missing+=("RENDER_API_KEY")
+[[ -z "${CLOUDFLARE_API_TOKEN:-}" ]] && missing+=("CLOUDFLARE_API_TOKEN")
+
+if [[ ${#missing[@]} -gt 0 ]]; then
+  echo "Missing tokens: ${missing[*]}"
   echo ""
-else
-  echo "Deploying frontend to Vercel..."
-  cd "$FRONTEND"
-  npx vercel deploy --prod --token "$VERCEL_TOKEN" --yes
+  echo "Add them, then rerun: ./scripts/deploy-bouncepass.sh"
+  echo ""
+  echo "Frontend (Vercel):"
+  echo "  Create a token at https://vercel.com/account/tokens (scope adrianjaucian-s-projects / bouncepass)"
+  echo ""
+  echo "Backend (Render):"
+  echo "  Create an API key at https://dashboard.render.com/u/settings#api-keys"
+  echo ""
+  echo "DNS (Cloudflare):"
+  echo "  Create a token with Zone.Zone Read + Zone.DNS Edit for bouncepass.net"
+  echo "  https://dash.cloudflare.com/profile/api-tokens"
+  echo ""
+  echo "Expected production topology:"
+  echo "  bouncepass.net / www.bouncepass.net  -> Vercel"
+  echo "  api.bouncepass.net                   -> Render (DNS only)"
+  exit 1
 fi
 
-echo ""
-echo "Backend (Render):"
-echo "  1. Push this repo to GitHub"
-echo "  2. Render → New Blueprint → connect repo → uses render.yaml (API + Postgres)"
-echo "  3. Set JWT_SECRET and ADMIN_EMAIL when prompted"
-echo "  4. Add custom domain api.bouncepass.net in Render"
-echo ""
-echo "Cloudflare DNS (bouncepass.net):"
-echo "  @    CNAME  cname.vercel-dns.com   (or A records from Vercel)"
-echo "  www  CNAME  cname.vercel-dns.com"
-echo "  api  CNAME  <your-service>.onrender.com  (DNS only / grey cloud)"
-echo ""
-echo "Cloudflare SSL/TLS mode: Full"
-echo ""
-echo "After deploy: register ADMIN_EMAIL account, then run scripts/assign_orphan_games.py"
+exec python3 "$ROOT/scripts/redeploy_production.py"

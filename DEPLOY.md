@@ -156,8 +156,12 @@ If API calls fail with 401, confirm `AUTH_SECRET` on Vercel matches `JWT_SECRET`
 
 ## Helper script
 
+With `VERCEL_TOKEN`, `RENDER_API_KEY`, and `CLOUDFLARE_API_TOKEN` set, this redeploys the backend, frontend, and DNS:
+
 ```bash
 ./scripts/deploy-bouncepass.sh
 ```
 
-Prints a checklist if CLI tokens are not configured.
+It points `bouncepass.net` / `www.bouncepass.net` at Vercel, `api.bouncepass.net` at Render (DNS only), recreates a free Postgres database if the previous one expired, and waits for health checks.
+
+Prints a checklist if those tokens are not configured.
