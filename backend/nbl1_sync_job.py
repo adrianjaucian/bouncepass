@@ -138,6 +138,10 @@ def start_sync_job(
     with _lock:
         if state["running"]:
             return {"started": False, "message": "A sync is already running."}
+        state["running"] = True
+        state["progress"] = "Starting NBL1 sync..."
+        state["result"] = None
+        state["error"] = None
 
     thread = threading.Thread(
         target=_run_sync_job,

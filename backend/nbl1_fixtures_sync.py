@@ -66,12 +66,17 @@ def _fetch_rosetta(path: str, params: Optional[Dict[str, str]] = None) -> Dict[s
 
 
 def get_current_season_year() -> str:
-    payload = _fetch_rosetta("seasons/current")
-    seasons = payload.get("data") or []
-    years = [str(season.get("year")).strip() for season in seasons if season.get("year")]
-    if not years:
-        return str(datetime.utcnow().year)
-    return max(years)
+    for path in ("seasons/current", "seasons"):
+        payload = _fetch_rosetta(path)
+        seasons = payload.get("data") or []
+        years = [
+            str(season.get("year")).strip()
+            for season in seasons
+            if isinstance(season, dict) and season.get("year")
+        ]
+        if years:
+            return max(years)
+    return str(datetime.utcnow().year)
 
 
 def _match_fixture_id(match: Dict[str, Any]) -> Optional[str]:

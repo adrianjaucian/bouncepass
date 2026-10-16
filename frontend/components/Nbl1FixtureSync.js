@@ -10,28 +10,39 @@ export default function Nbl1FixtureSync() {
   const [error, setError] = useState(null);
 
   const pollStatus = async () => {
-    const res = await syncApi.get("/sync/nbl1-fixtures/status");
-    const status = res.data;
-    setProgress(status.progress || (status.running ? "Syncing..." : ""));
+    try {
+      const res = await syncApi.get("/sync/nbl1-fixtures/status");
+      const status = res.data;
+      setProgress(status.progress || (status.running ? "Syncing..." : ""));
 
-    if (status.error) {
-      setError(status.error);
+      if (status.error) {
+        setError(status.error);
+        setLoading(false);
+        return;
+      }
+
+      if (status.result) {
+        setResult(status.result);
+      }
+
+      if (status.running) {
+        window.setTimeout(pollStatus, 2000);
+        return;
+      }
+
       setLoading(false);
-      return;
-    }
-
-    if (status.result) {
-      setResult(status.result);
-    }
-
-    if (status.running) {
-      window.setTimeout(pollStatus, 2000);
-      return;
-    }
-
-    setLoading(false);
-    if (status.result) {
-      setProgress("Sync complete.");
+      if (status.result) {
+        setProgress("Sync complete.");
+      }
+    } catch (err) {
+      const message =
+        err?.response?.data?.detail ||
+        err?.response?.data?.error ||
+        err?.message ||
+        "Could not read sync status.";
+      setError(typeof message === "string" ? message : JSON.stringify(message));
+      setProgress("");
+      setLoading(false);
     }
   };
 

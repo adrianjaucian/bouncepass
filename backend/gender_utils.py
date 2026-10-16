@@ -35,9 +35,20 @@ def format_team_gender_short(name: str, gender: Optional[str] = None) -> str:
     return cleaned
 
 
+def _team_division_name(team: Any) -> str:
+    if not isinstance(team, dict):
+        return ""
+    division = team.get("division")
+    if not isinstance(division, dict):
+        return ""
+    return str(division.get("name") or "")
+
+
 def extract_gender_from_match(match: Dict[str, Any]) -> str:
+    if not isinstance(match, dict):
+        return "men"
     for team_key in ("home_team", "away_team"):
-        division_name = str((match.get(team_key) or {}).get("division", {}).get("name") or "")
+        division_name = _team_division_name(match.get(team_key))
         lowered = division_name.lower()
         if "women" in lowered or "female" in lowered or lowered.endswith(" w"):
             return "women"
