@@ -80,7 +80,11 @@ def on_startup():
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    commit = (os.getenv("RENDER_GIT_COMMIT") or os.getenv("GIT_COMMIT") or "")[:12]
+    payload = {"status": "ok"}
+    if commit:
+        payload["commit"] = commit
+    return payload
 
 
 DEFAULT_ORIGINS = "https://bouncepass.net,https://www.bouncepass.net,http://localhost:3000"

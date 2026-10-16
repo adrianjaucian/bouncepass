@@ -1,7 +1,11 @@
+import logging
 import os
+import threading
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import declarative_base, sessionmaker
+
+logger = logging.getLogger("bouncepass.db")
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./saved_games.db")
 if DATABASE_URL.startswith("postgres://"):
@@ -62,7 +66,14 @@ def init_db():
     Base.metadata.create_all(bind=engine)
     _migrate_saved_games_columns()
     _backfill_cached_scores()
-    _backfill_nbl1_metadata()
+    # NBL1 metadata backfill hits the public fixtures API (five conferences).
+    # Running it inline blocks gunicorn from binding, so Render health checks
+    # fail and the new deploy is discarded. Keep it off the startup path.
+    threading.Thread(
+        target=_backfill_nbl1_metadata,
+        name="nbl1-metadata-backfill",
+        daemon=True,
+    ).start()
 
 
 def _backfill_cached_scores():
@@ -102,6 +113,7 @@ def _backfill_nbl1_metadata():
         _, fixtures = discover_nbl1_fixtures()
         backfill_nbl1_metadata_from_fixtures(db, fixtures)
     except Exception:
+        logger.exception("NBL1 metadata backfill failed")
         db.rollback()
     finally:
         db.close()
