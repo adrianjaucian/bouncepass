@@ -60,7 +60,7 @@ from game_dedup import dedupe_user_saved_games, find_game_by_identity, upgrade_s
 from game_scores import scores_from_results
 from gender_utils import collect_team_options, filter_games_by_gender, normalize_gender
 from region_utils import filter_games_by_region, normalize_region
-from nbl1_sync_job import get_sync_status, start_sync_job
+from nbl1_sync_job import DEMO_SYNC_LIMIT, get_sync_status, start_sync_job
 from player_dashboard import build_league_leader_players, build_player_dashboard, collect_player_names
 from team_dashboard import build_team_dashboard, build_team_league_leaders
 from perf_utils import timed_step
@@ -612,7 +612,7 @@ def sync_nbl1_fixtures_endpoint(
     payload = start_sync_job(
         user_id=current_user.id,
         season_year=body.season_year,
-        max_imports=body.max_imports or 40,
+        max_imports=body.max_imports or DEMO_SYNC_LIMIT,
     )
     return Nbl1SyncStartResponse(**payload)
 

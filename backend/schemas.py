@@ -54,7 +54,7 @@ class AuthResponse(BaseModel):
 
 class Nbl1SyncRequest(BaseModel):
     season_year: Optional[str] = None
-    max_imports: Optional[int] = Field(default=None, ge=1, le=500)
+    max_imports: Optional[int] = Field(default=20, ge=1, le=20)
 
 
 class Nbl1SyncImportedGame(BaseModel):

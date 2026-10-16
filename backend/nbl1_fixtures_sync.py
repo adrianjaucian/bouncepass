@@ -27,6 +27,7 @@ ROSETTA_BASE = "https://prod.rosetta.nbl.com.au/get/nbl1"
 NBL1_CONFERENCES = ("north", "south", "east", "west", "central")
 USER_AGENT = "Mozilla/5.0 (compatible; BouncePass/1.0)"
 COMPLETED_STATUSES = {"complete", "completed", "final"}
+DEMO_SYNC_LIMIT = 20
 
 
 class Nbl1SyncError(Exception):
@@ -340,9 +341,12 @@ def sync_nbl1_fixtures(
     saved_ids, saved_identity_keys = load_saved_game_keys(db, user_id)
 
     completed = [match for match in fixtures if _is_completed_match(match)]
+    completed.sort(key=lambda match: match.get("start_time_datetime") or "", reverse=True)
+    limit = DEMO_SYNC_LIMIT if max_imports is None else max_imports
+    latest = completed[:limit]
     pending = []
     skipped_existing = 0
-    for match in completed:
+    for match in latest:
         fixture_id = _match_fixture_id(match)
         if not fixture_id:
             continue
@@ -355,7 +359,7 @@ def sync_nbl1_fixtures(
             skipped_existing += 1
             continue
         pending.append(match)
-    batch = pending if max_imports is None else pending[:max_imports]
+    batch = pending
 
     imported: List[Dict[str, Any]] = []
     errors: List[Dict[str, str]] = []
@@ -416,7 +420,6 @@ def sync_nbl1_fixtures(
         if delay_seconds and index < len(batch) - 1:
             time.sleep(delay_seconds)
 
-    remaining_pending = len(pending) - len(batch)
     return {
         "season_year": year,
         "discovered": len(fixtures),
@@ -429,5 +432,5 @@ def sync_nbl1_fixtures(
         "imported": imported,
         "failed_count": len(errors),
         "errors": errors,
-        "has_more": remaining_pending > 0,
+        "has_more": False,
     }

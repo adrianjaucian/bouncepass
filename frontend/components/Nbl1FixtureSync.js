@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { syncApi } from "../lib/api";
 
 export default function Nbl1FixtureSync() {
@@ -53,7 +53,7 @@ export default function Nbl1FixtureSync() {
     setProgress("Starting sync...");
 
     try {
-      const res = await syncApi.post("/sync/nbl1-fixtures", {});
+      const res = await syncApi.post("/sync/nbl1-fixtures", { max_imports: 20 });
       if (!res.data?.started) {
         setError(res.data?.message || "Could not start sync.");
         setLoading(false);
@@ -85,7 +85,7 @@ export default function Nbl1FixtureSync() {
     >
       <h2 style={{ color: "#2c3e50", margin: "0 0 12px 0", fontSize: "1.5em" }}>NBL1 Auto Sync</h2>
       <p style={{ margin: "0 0 16px 0", color: "#56616b", fontSize: "14px", lineHeight: 1.5 }}>
-        Pull completed men&apos;s and women&apos;s games from{" "}
+        Pull the latest 20 completed men&apos;s and women&apos;s games from{" "}
         <a href="https://www.nbl1.com.au/fixtures" target="_blank" rel="noreferrer" style={{ color: "#3498db" }}>
           nbl1.com.au/fixtures
         </a>
@@ -107,7 +107,7 @@ export default function Nbl1FixtureSync() {
             cursor: loading ? "not-allowed" : "pointer",
           }}
         >
-          {loading ? "Syncing NBL1 current season fixtures..." : "Sync NBL1 Current Season Fixtures"}
+          {loading ? "Syncing latest 20 NBL1 games..." : "Sync Latest 20 NBL1 Games"}
         </button>
       </div>
 

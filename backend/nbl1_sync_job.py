@@ -4,7 +4,7 @@ from typing import Any, Dict, Optional
 
 from database import SessionLocal
 from game_dedup import dedupe_user_saved_games
-from nbl1_fixtures_sync import Nbl1SyncError, sync_nbl1_fixtures
+from nbl1_fixtures_sync import DEMO_SYNC_LIMIT, Nbl1SyncError, sync_nbl1_fixtures
 
 _lock = threading.Lock()
 _states: Dict[int, Dict[str, Any]] = {}
@@ -85,33 +85,28 @@ def _run_sync_job(user_id: int, season_year: Optional[str], max_imports: int) ->
         finally:
             db.close()
 
-        while True:
-            db = SessionLocal()
-            try:
-                batch = sync_nbl1_fixtures(
-                    db,
-                    user_id=user_id,
-                    season_year=season_year,
-                    max_imports=max_imports,
-                )
-            finally:
-                db.close()
+        db = SessionLocal()
+        try:
+            batch = sync_nbl1_fixtures(
+                db,
+                user_id=user_id,
+                season_year=season_year,
+                max_imports=max_imports,
+            )
+        finally:
+            db.close()
 
-            _merge_batch(aggregate, batch)
-            with _lock:
-                state["progress"] = (
-                    f"Removed {aggregate['deduped_count']} duplicate game"
-                    f"{'' if aggregate['deduped_count'] == 1 else 's'} · "
-                    f"Updated {aggregate['updated_metadata_count']} game"
-                    f"{'' if aggregate['updated_metadata_count'] == 1 else 's'} with gender/region · "
-                    f"Imported {aggregate['imported_count']} new game"
-                    f"{'' if aggregate['imported_count'] == 1 else 's'} "
-                    f"({aggregate['pending']} still pending)..."
-                )
-
-            if not batch.get("has_more"):
-                aggregate["has_more"] = False
-                break
+        _merge_batch(aggregate, batch)
+        aggregate["has_more"] = False
+        with _lock:
+            state["progress"] = (
+                f"Removed {aggregate['deduped_count']} duplicate game"
+                f"{'' if aggregate['deduped_count'] == 1 else 's'} · "
+                f"Updated {aggregate['updated_metadata_count']} game"
+                f"{'' if aggregate['updated_metadata_count'] == 1 else 's'} with gender/region · "
+                f"Imported {aggregate['imported_count']} of the latest {max_imports} game"
+                f"{'' if max_imports == 1 else 's'}..."
+            )
 
         with _lock:
             state["result"] = aggregate
@@ -132,7 +127,7 @@ def _run_sync_job(user_id: int, season_year: Optional[str], max_imports: int) ->
 def start_sync_job(
     user_id: int,
     season_year: Optional[str] = None,
-    max_imports: int = 40,
+    max_imports: int = DEMO_SYNC_LIMIT,
 ) -> Dict[str, Any]:
     state = _get_state(user_id)
     with _lock:
