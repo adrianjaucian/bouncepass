@@ -62,6 +62,7 @@ from gender_utils import collect_team_options, filter_games_by_gender, normalize
 from region_utils import filter_games_by_region, normalize_region
 from nbl1_sync_job import DEMO_SYNC_LIMIT, get_sync_status, start_sync_job
 from player_dashboard import build_league_leader_players, build_player_dashboard, collect_player_names
+from stats_engine import generate_advanced_stats
 from team_dashboard import build_team_dashboard, build_team_league_leaders
 from perf_utils import timed_step
 

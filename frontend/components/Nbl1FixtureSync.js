@@ -1,7 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { syncApi } from "../lib/api";
+import api from "../lib/api";
+
+function gameKey(game) {
+  return [
+    game.game_date || "",
+    (game.home_team_name || "").trim().toLowerCase(),
+    (game.away_team_name || "").trim().toLowerCase(),
+    game.gender || "",
+  ].join("|");
+}
+
+function errorMessage(err, fallback) {
+  const message = err?.response?.data?.detail || err?.response?.data?.error || err?.message || fallback;
+  return typeof message === "string" ? message : JSON.stringify(message);
+}
 
 export default function Nbl1FixtureSync() {
   const [loading, setLoading] = useState(false);
@@ -9,66 +23,89 @@ export default function Nbl1FixtureSync() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
 
-  const pollStatus = async () => {
-    try {
-      const res = await syncApi.get("/sync/nbl1-fixtures/status");
-      const status = res.data;
-      setProgress(status.progress || (status.running ? "Syncing..." : ""));
-
-      if (status.error) {
-        setError(status.error);
-        setLoading(false);
-        return;
-      }
-
-      if (status.result) {
-        setResult(status.result);
-      }
-
-      if (status.running) {
-        window.setTimeout(pollStatus, 2000);
-        return;
-      }
-
-      setLoading(false);
-      if (status.result) {
-        setProgress("Sync complete.");
-      }
-    } catch (err) {
-      const message =
-        err?.response?.data?.detail ||
-        err?.response?.data?.error ||
-        err?.message ||
-        "Could not read sync status.";
-      setError(typeof message === "string" ? message : JSON.stringify(message));
-      setProgress("");
-      setLoading(false);
-    }
-  };
-
   const runSync = async () => {
     setLoading(true);
     setError(null);
     setResult(null);
-    setProgress("Starting sync...");
+    setProgress("Finding the latest 20 completed NBL1 games...");
 
     try {
-      const res = await syncApi.post("/sync/nbl1-fixtures", { max_imports: 20 });
-      if (!res.data?.started) {
-        setError(res.data?.message || "Could not start sync.");
-        setLoading(false);
-        return;
+      const latestRes = await fetch("/api/nbl1-latest", { credentials: "include" });
+      const latest = await latestRes.json().catch(() => ({}));
+      if (!latestRes.ok) {
+        throw new Error(latest.error || "Could not load the latest NBL1 games.");
       }
-      setProgress(res.data.message || "Sync started in the background.");
-      window.setTimeout(pollStatus, 1500);
+
+      const savedRes = await api.get("/games", { params: { limit: 200 } });
+      const savedKeys = new Set((savedRes.data?.games || []).map(gameKey));
+
+      const matches = latest.matches || [];
+      const imported = [];
+      const errors = [];
+      let skippedExisting = 0;
+
+      for (let index = 0; index < matches.length; index += 1) {
+        const match = matches[index];
+        const label = match.label || `${match.home_team_name} vs ${match.away_team_name}`;
+        if (savedKeys.has(gameKey(match))) {
+          skippedExisting += 1;
+          setProgress(`Skipped ${label} (already saved) · ${index + 1}/${matches.length}`);
+          continue;
+        }
+
+        setProgress(`Importing ${index + 1}/${matches.length}: ${label}...`);
+        try {
+          const importedRes = await fetch("/api/nbl1-import", {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(match),
+          });
+          const importedGame = await importedRes.json().catch(() => ({}));
+          if (importedRes.status === 409 || importedGame.skipped) {
+            skippedExisting += 1;
+            continue;
+          }
+          if (!importedRes.ok) {
+            throw new Error(importedGame.error || "Could not import game");
+          }
+          imported.push({
+            id: importedGame.id,
+            fixture_id: match.fixture_id,
+            game_date: importedGame.game_date || match.game_date,
+            home_team_name: importedGame.home_team_name || match.home_team_name,
+            away_team_name: importedGame.away_team_name || match.away_team_name,
+            gender: match.gender,
+            region: match.region,
+            label,
+          });
+          savedKeys.add(gameKey(match));
+        } catch (err) {
+          errors.push({
+            fixture_id: match.fixture_id,
+            label,
+            error: errorMessage(err, "Could not import game"),
+          });
+        }
+      }
+
+      setResult({
+        season_year: latest.season_year,
+        discovered: latest.discovered,
+        completed: latest.completed,
+        skipped_existing: skippedExisting,
+        deduped_count: 0,
+        updated_metadata_count: 0,
+        imported_count: imported.length,
+        imported,
+        failed_count: errors.length,
+        errors,
+      });
+      setProgress("Sync complete.");
     } catch (err) {
-      const message =
-        err?.response?.data?.detail ||
-        err?.response?.data?.error ||
-        err?.message ||
-        "Could not sync NBL1 fixtures.";
-      setError(typeof message === "string" ? message : JSON.stringify(message));
+      setError(errorMessage(err, "Could not sync NBL1 fixtures."));
       setProgress("");
+    } finally {
       setLoading(false);
     }
   };
@@ -89,7 +126,7 @@ export default function Nbl1FixtureSync() {
         <a href="https://www.nbl1.com.au/fixtures" target="_blank" rel="noreferrer" style={{ color: "#3498db" }}>
           nbl1.com.au/fixtures
         </a>
-        . Sync runs in the background so you can keep browsing saved games and dashboards while it works.
+        . Already-saved games are skipped. Importing box scores usually takes a few minutes.
       </p>
 
       <div style={{ marginBottom: "16px" }}>
