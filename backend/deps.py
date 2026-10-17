@@ -1,7 +1,7 @@
 from fastapi import Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
-from auth_utils import decode_access_token
+from auth_utils import decode_access_token, is_allowed_login_email
 from database import get_db
 from models import User
 
@@ -25,5 +25,7 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
+    if not is_allowed_login_email(user.email):
+        raise HTTPException(status_code=403, detail="Account access is limited to the demo account")
 
     return user

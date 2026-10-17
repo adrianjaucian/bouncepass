@@ -22,6 +22,8 @@ services:
         sync: false
       - key: ADMIN_EMAIL
         value: demo@bouncepass.net
+      - key: ALLOW_REGISTRATION
+        value: "false"
       - key: ALLOWED_ORIGINS
         value: https://bouncepass.net,https://www.bouncepass.net
       - key: PYTHON_VERSION

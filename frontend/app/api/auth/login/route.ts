@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { AUTH_COOKIE_NAME, getBackendUrl } from "../../../../lib/auth";
+import { AUTH_COOKIE_NAME, getBackendUrl, isAllowedAccountEmail } from "../../../../lib/auth";
 
 export async function POST(request: NextRequest) {
   let body: { email?: string; password?: string };
@@ -13,6 +13,12 @@ export async function POST(request: NextRequest) {
   const password = body.password || "";
   if (!email || !password) {
     return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
+  }
+  if (!isAllowedAccountEmail(email)) {
+    return NextResponse.json(
+      { error: "Account access is limited to the demo account" },
+      { status: 403 }
+    );
   }
 
   try {

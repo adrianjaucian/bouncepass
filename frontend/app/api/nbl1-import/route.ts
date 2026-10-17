@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { AUTH_COOKIE_NAME, getBackendUrl, isAuthenticated } from "../../../lib/auth";
+import { AUTH_COOKIE_NAME, getBackendUrl, isDemoSession } from "../../../lib/auth";
 import { fetchNbl1Boxscore } from "../../../lib/nbl1Boxscore";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +17,7 @@ type ImportBody = {
 
 export async function POST(request: NextRequest) {
   const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
-  if (!(await isAuthenticated(token)) || !token) {
+  if (!(await isDemoSession(token)) || !token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

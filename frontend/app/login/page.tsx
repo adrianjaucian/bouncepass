@@ -1,14 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, Suspense, useState } from "react";
 import MetricDefinitionsSection from "../../components/MetricDefinitionsSection";
 import UploadDual from "../../components/UploadDual";
+import { ADMIN_EMAIL } from "../../lib/contact";
 
 function LoginForm() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(ADMIN_EMAIL);
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -65,7 +65,7 @@ function LoginForm() {
             Bounce PASS
           </h1>
           <p style={{ color: "#7f8c8d", margin: "0 0 24px 0", textAlign: "center" }}>
-            Sign in to access your saved games, dashboards, and NBL1 auto-sync.
+            Demo access is limited to <strong>{ADMIN_EMAIL}</strong>. New accounts cannot be created right now.
           </p>
 
           <form onSubmit={handleSubmit} style={{ display: "grid", gap: "16px" }}>
@@ -114,13 +114,6 @@ function LoginForm() {
               {loading ? "Signing in..." : "Sign in"}
             </button>
           </form>
-
-          <p style={{ margin: "20px 0 0 0", textAlign: "center", color: "#56616b", fontSize: "14px" }}>
-            No account?{" "}
-            <Link href="/register" style={{ color: "#3498db", fontWeight: 600 }}>
-              Create one
-            </Link>
-          </p>
 
           {error && (
             <div

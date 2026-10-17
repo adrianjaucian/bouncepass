@@ -25,7 +25,7 @@ from deps import get_current_user
 from models import SavedGame, User
 from auth_utils import (
     create_access_token,
-    hash_password,
+    is_allowed_login_email,
     normalize_email,
     verify_password,
 )
@@ -109,27 +109,16 @@ def _user_to_response(user: User) -> UserResponse:
 
 
 @app.post("/auth/register", response_model=AuthResponse)
-def register(body: RegisterRequest, db: Session = Depends(get_db)) -> AuthResponse:
-    allow_registration = os.getenv("ALLOW_REGISTRATION", "true").lower() != "false"
-    if not allow_registration:
-        raise HTTPException(status_code=403, detail="Registration is disabled")
-
-    email = normalize_email(body.email)
-    if db.query(User).filter(User.email == email).first():
-        raise HTTPException(status_code=409, detail="An account with this email already exists")
-
-    user = User(email=email, password_hash=hash_password(body.password))
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-
-    token = create_access_token(user.id)
-    return AuthResponse(access_token=token, user=_user_to_response(user))
+def register(_body: RegisterRequest) -> AuthResponse:
+    raise HTTPException(status_code=403, detail="Registration is disabled")
 
 
 @app.post("/auth/login", response_model=AuthResponse)
 def login(body: LoginRequest, db: Session = Depends(get_db)) -> AuthResponse:
     email = normalize_email(body.email)
+    if not is_allowed_login_email(email):
+        raise HTTPException(status_code=403, detail="Account access is limited to the demo account")
+
     user = db.query(User).filter(User.email == email).first()
     if not user or not verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")

@@ -30,6 +30,11 @@ export default function SiteNav() {
     const loadUser = async () => {
       try {
         const response = await fetch("/api/auth/me");
+        if (response.status === 403) {
+          await fetch("/api/auth/logout", { method: "POST" });
+          router.replace("/login");
+          return;
+        }
         if (!response.ok) return;
         const data = await response.json();
         setUserEmail(data.email || "");

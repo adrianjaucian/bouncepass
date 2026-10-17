@@ -14,6 +14,14 @@ def normalize_email(email: str) -> str:
     return email.strip().lower()
 
 
+def allowed_login_email() -> str:
+    return normalize_email(os.getenv("ADMIN_EMAIL", "demo@bouncepass.net"))
+
+
+def is_allowed_login_email(email: str) -> bool:
+    return normalize_email(email) == allowed_login_email()
+
+
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { AUTH_COOKIE_NAME, isAuthenticated } from "../../../lib/auth";
+import { AUTH_COOKIE_NAME, isDemoSession } from "../../../lib/auth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -108,7 +108,7 @@ async function currentSeasonYear(): Promise<string> {
 
 export async function GET(request: NextRequest) {
   const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
-  if (!(await isAuthenticated(token))) {
+  if (!(await isDemoSession(token))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

@@ -4,19 +4,22 @@ import { AUTH_COOKIE_NAME, isAuthenticated } from "./lib/auth";
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  if (pathname === "/register") {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = "/login";
+    loginUrl.search = "";
+    return NextResponse.redirect(loginUrl);
+  }
+
   if (
     pathname === "/login" ||
-    pathname === "/register" ||
     pathname.startsWith("/api/auth/") ||
     pathname.startsWith("/api/calculate/") ||
     pathname.startsWith("/_next/") ||
     pathname === "/favicon.ico"
   ) {
     const cookieValue = request.cookies.get(AUTH_COOKIE_NAME)?.value;
-    if (
-      (pathname === "/login" || pathname === "/register") &&
-      (await isAuthenticated(cookieValue))
-    ) {
+    if (pathname === "/login" && (await isAuthenticated(cookieValue))) {
       const homeUrl = request.nextUrl.clone();
       homeUrl.pathname = "/";
       homeUrl.search = "";
