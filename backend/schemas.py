@@ -42,6 +42,10 @@ class LoginRequest(BaseModel):
     password: str = Field(..., min_length=1)
 
 
+class AccessRequest(BaseModel):
+    password: str = Field(..., min_length=1)
+
+
 class UserResponse(BaseModel):
     id: int
     email: str

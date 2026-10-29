@@ -24,6 +24,8 @@ services:
         value: demo@bouncepass.net
       - key: ALLOW_REGISTRATION
         value: "false"
+      - key: ACCESS_PASSWORD
+        value: pregame
       - key: ALLOWED_ORIGINS
         value: https://bouncepass.net,https://www.bouncepass.net
       - key: PYTHON_VERSION

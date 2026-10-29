@@ -180,7 +180,7 @@ export default function SavedGamesPage() {
           {!loading && !error && total === 0 && (
             <p style={{ color: "#56616b" }}>
               No games saved yet. Use the calculator on the{" "}
-              <Link href="/login" style={{ color: "#3498db" }}>login page</Link> or sync NBL1 fixtures from Home.
+              <Link href="/login" style={{ color: "#3498db" }}>password page</Link> or sync NBL1 fixtures from Home.
             </p>
           )}
 

@@ -4,11 +4,9 @@ import { useRouter } from "next/navigation";
 import { FormEvent, Suspense, useState } from "react";
 import MetricDefinitionsSection from "../../components/MetricDefinitionsSection";
 import UploadDual from "../../components/UploadDual";
-import { ADMIN_EMAIL } from "../../lib/contact";
 
-function LoginForm() {
+function SitePasswordForm() {
   const router = useRouter();
-  const [email, setEmail] = useState(ADMIN_EMAIL);
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -19,22 +17,22 @@ function LoginForm() {
     setError("");
 
     try {
-      const response = await fetch("/api/auth/login", {
+      const response = await fetch("/api/auth/access", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ password }),
       });
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
-        setError(data.error || "Invalid email or password");
+        setError(data.error || "Invalid password");
         return;
       }
 
       router.replace("/");
       router.refresh();
     } catch {
-      setError("Unable to sign in. Please try again.");
+      setError("Unable to unlock the site. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -65,30 +63,16 @@ function LoginForm() {
             Bounce PASS
           </h1>
           <p style={{ color: "#7f8c8d", margin: "0 0 24px 0", textAlign: "center" }}>
-            Demo access is limited to <strong>{ADMIN_EMAIL}</strong>. New accounts cannot be created right now.
+            Enter the site password to open the demo.
           </p>
 
           <form onSubmit={handleSubmit} style={{ display: "grid", gap: "16px" }}>
             <input
-              type="email"
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              autoFocus
-              autoComplete="email"
-              style={{
-                padding: "12px 14px",
-                borderRadius: "8px",
-                border: "1px solid #d0d7de",
-                fontSize: "14px",
-                color: "#000",
-              }}
-            />
-            <input
               type="password"
-              placeholder="Password"
+              placeholder="Site password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              autoFocus
               autoComplete="current-password"
               style={{
                 padding: "12px 14px",
@@ -100,18 +84,18 @@ function LoginForm() {
             />
             <button
               type="submit"
-              disabled={loading || !email || !password}
+              disabled={loading || !password}
               style={{
                 padding: "14px 24px",
-                backgroundColor: loading || !email || !password ? "#bdc3c7" : "#3498db",
+                backgroundColor: loading || !password ? "#bdc3c7" : "#3498db",
                 color: "white",
                 border: "none",
                 borderRadius: "8px",
-                cursor: loading || !email || !password ? "not-allowed" : "pointer",
+                cursor: loading || !password ? "not-allowed" : "pointer",
                 fontWeight: "bold",
               }}
             >
-              {loading ? "Signing in..." : "Sign in"}
+              {loading ? "Unlocking..." : "Unlock"}
             </button>
           </form>
 
@@ -150,7 +134,7 @@ function LoginForm() {
 export default function LoginPage() {
   return (
     <Suspense>
-      <LoginForm />
+      <SitePasswordForm />
     </Suspense>
   );
 }

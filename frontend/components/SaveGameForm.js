@@ -42,12 +42,12 @@ export default function SaveGameForm({
       try {
         const authRes = await fetch("/api/auth/me");
         if (!authRes.ok) {
-          setError("Sign in to save this game to your account.");
+          setError("Unlock the site with the password to save this game.");
           router.push("/login?from=/");
           return;
         }
       } catch {
-        setError("Sign in to save this game to your account.");
+        setError("Unlock the site with the password to save this game.");
         router.push("/login?from=/");
         return;
       }
@@ -104,7 +104,7 @@ export default function SaveGameForm({
       </h3>
       {requireAuth && (
         <p style={{ margin: '0 0 12px 0', color: '#56616b', fontSize: '13px' }}>
-          Sign in first to store this box score in your database.
+          Unlock the site first to store this box score in your database.
         </p>
       )}
       <div style={{ display: 'grid', gap: '12px', maxWidth: '520px' }}>

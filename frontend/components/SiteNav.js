@@ -37,7 +37,7 @@ export default function SiteNav() {
         }
         if (!response.ok) return;
         const data = await response.json();
-        setUserEmail(data.email || "");
+        setUserEmail(data.email ? "Demo" : "");
       } catch {
         setUserEmail("");
       }
@@ -129,7 +129,7 @@ export default function SiteNav() {
         >
           {userEmail && (
             <div style={{ padding: "8px 10px", color: "#56616b", fontSize: "13px", borderBottom: "1px solid #eef2f6" }}>
-              Signed in as<br />
+              Site unlocked<br />
               <strong style={{ color: "#2c3e50" }}>{userEmail}</strong>
             </div>
           )}
@@ -200,7 +200,7 @@ export default function SiteNav() {
               cursor: "pointer",
             }}
           >
-            Log out
+            Lock site
           </button>
         </nav>
       )}

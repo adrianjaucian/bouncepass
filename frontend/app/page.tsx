@@ -115,11 +115,11 @@ export default function Page() {
             </div>
 
             <p style={{ margin: "24px 0 0 0", fontSize: "14px", color: "#7f8c8d" }}>
-              Want to try the box score calculator without signing in?{" "}
+              Want to try the box score calculator without unlocking the full demo?{" "}
               <Link href="/login" style={{ color: "#3498db" }}>
-                Visit the login page
+                Open the password page
               </Link>{" "}
-              — the demo calculator runs below the sign-in form (NBL1 and NBL.com.au URLs supported).
+              — the calculator runs below the site password form (NBL1 and NBL.com.au URLs supported).
             </p>
           </section>
         </main>

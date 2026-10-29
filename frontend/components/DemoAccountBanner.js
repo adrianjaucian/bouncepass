@@ -65,8 +65,7 @@ export default function DemoAccountBanner() {
         textAlign: "center",
       }}
     >
-      <strong>Demo account.</strong> Use homepage auto-sync to load the latest 20 completed NBL1
-      games into this account.
+      <strong>Demo.</strong> Use homepage auto-sync to load the latest 20 completed NBL1 games.
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import hmac
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -20,6 +21,19 @@ def allowed_login_email() -> str:
 
 def is_allowed_login_email(email: str) -> bool:
     return normalize_email(email) == allowed_login_email()
+
+
+def site_password() -> str:
+    return os.getenv("ACCESS_PASSWORD") or os.getenv("SITE_PASSWORD") or "pregame"
+
+
+def is_valid_site_password(password: str) -> bool:
+    expected = site_password().encode("utf-8")
+    given = (password or "").encode("utf-8")
+    if len(given) != len(expected):
+        hmac.compare_digest(expected, expected)
+        return False
+    return hmac.compare_digest(given, expected)
 
 
 def hash_password(password: str) -> str:

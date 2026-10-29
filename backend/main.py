@@ -25,11 +25,15 @@ from deps import get_current_user
 from models import SavedGame, User
 from auth_utils import (
     create_access_token,
+    hash_password,
     is_allowed_login_email,
+    is_valid_site_password,
     normalize_email,
+    site_password,
     verify_password,
 )
 from schemas import (
+    AccessRequest,
     AuthResponse,
     BoxScoreUrlMeta,
     BoxScoreUrlRequest,
@@ -108,20 +112,52 @@ def _user_to_response(user: User) -> UserResponse:
     return UserResponse(id=user.id, email=user.email)
 
 
+def _get_or_create_site_user(db: Session) -> User:
+    email = normalize_email(os.getenv("ADMIN_EMAIL", "demo@bouncepass.net"))
+    password = site_password()
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        user = User(email=email, password_hash=hash_password(password))
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return user
+    if not verify_password(password, user.password_hash):
+        user.password_hash = hash_password(password)
+        db.commit()
+    return user
+
+
 @app.post("/auth/register", response_model=AuthResponse)
 def register(_body: RegisterRequest) -> AuthResponse:
     raise HTTPException(status_code=403, detail="Registration is disabled")
 
 
+@app.post("/auth/access", response_model=AuthResponse)
+def site_access(body: AccessRequest, db: Session = Depends(get_db)) -> AuthResponse:
+    if not is_valid_site_password(body.password):
+        raise HTTPException(status_code=401, detail="Invalid password")
+    user = _get_or_create_site_user(db)
+    token = create_access_token(user.id)
+    return AuthResponse(access_token=token, user=_user_to_response(user))
+
+
 @app.post("/auth/login", response_model=AuthResponse)
 def login(body: LoginRequest, db: Session = Depends(get_db)) -> AuthResponse:
+    if is_valid_site_password(body.password) and (
+        not body.email or is_allowed_login_email(body.email)
+    ):
+        user = _get_or_create_site_user(db)
+        token = create_access_token(user.id)
+        return AuthResponse(access_token=token, user=_user_to_response(user))
+
     email = normalize_email(body.email)
     if not is_allowed_login_email(email):
-        raise HTTPException(status_code=403, detail="Account access is limited to the demo account")
+        raise HTTPException(status_code=403, detail="Use the site password to unlock Bounce PASS")
 
     user = db.query(User).filter(User.email == email).first()
     if not user or not verify_password(body.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+        raise HTTPException(status_code=401, detail="Invalid password")
 
     token = create_access_token(user.id)
     return AuthResponse(access_token=token, user=_user_to_response(user))
