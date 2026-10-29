@@ -720,7 +720,7 @@ def list_teams(
     games = _user_games_query(db, current_user).all()
     filtered = filter_games_by_gender(games, gender)
     filtered = filter_games_by_region(filtered, region)
-    options = collect_team_options(filtered, require_gender=True, require_region=True)
+    options = collect_team_options(filtered, require_gender=False, require_region=False)
     return TeamListResponse(teams=[option["label"] for option in options], options=options)
 
 
@@ -737,15 +737,7 @@ def team_dashboard(
         raise HTTPException(status_code=400, detail="team_name is required")
 
     normalized_gender = normalize_gender(gender)
-    if not normalized_gender:
-        raise HTTPException(status_code=400, detail="gender is required (men or women)")
-
     normalized_region = normalize_region(region)
-    if not normalized_region:
-        raise HTTPException(
-            status_code=400,
-            detail="region is required (north, south, east, west, or central)",
-        )
 
     with timed_step("team_dashboard.db_query"):
         games = _load_user_games(

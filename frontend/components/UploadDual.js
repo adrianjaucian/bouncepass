@@ -11,7 +11,7 @@ export default function UploadDual({ demoMode = false }) {
   const calculatePath = demoMode ? "/boxscore-url" : "/upload-boxscore-url";
   const singleUploadPath = demoMode ? "/boxscore" : "/upload-boxscore";
   const dualUploadPath = demoMode ? "/boxscores" : "/upload-boxscores";
-  const [uploadMode, setUploadMode] = useState("url"); // "url", "file", or "paste"
+  const [uploadMode, setUploadMode] = useState(demoMode ? "url" : "file"); // "url", "file", or "paste"
   const [homeFile, setHomeFile] = useState(null);
   const [awayFile, setAwayFile] = useState(null);
   const [homeCSV, setHomeCSV] = useState("");
@@ -355,34 +355,19 @@ export default function UploadDual({ demoMode = false }) {
     <div>
       <div style={{ marginBottom: '30px' }}>
         <h2 style={{ color: '#2c3e50', margin: '0 0 20px 0', fontSize: '1.8em' }}>
-          {demoMode ? "Try the Calculator (Demo)" : "Upload Box Score"}
+          {demoMode ? "Try the Calculator (Demo)" : "Upload & Calculate"}
         </h2>
         <div style={{ backgroundColor: '#e8f4fd', padding: '15px', borderRadius: '5px', marginBottom: '20px', border: '1px solid #bee5eb' }}>
           <h4 style={{ margin: '0 0 10px 0', color: '#000' }}>Supported Format:</h4>
           <p style={{ margin: 0, color: '#000', fontSize: '14px' }}>
             {demoMode
-              ? "Paste a box score URL (NBL1 or NBL.com.au match pages), upload CSVs, or paste CSV data. Advanced stats are calculated instantly. Bounce the results to download as a CSV file."
-              : "Upload CSVs, paste data, or load a single custom game from a box score URL. The system will calculate advanced statistics including True Shooting %, Effective FG %, Usage Rate, and more."}
+              ? "Paste a box score URL, upload CSVs, or paste CSV data. Advanced stats are calculated instantly."
+              : "Upload CSV files, paste CSV data, or load a box score URL. Calculate advanced stats, then save the game to Advanced Box Scores."}
           </p>
         </div>
 
         {/* Mode toggle */}
         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
-          <button
-            onClick={() => setUploadMode("url")}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: uploadMode === "url" ? '#3498db' : '#ecf0f1',
-              color: uploadMode === "url" ? 'white' : '#000',
-              border: 'none',
-              borderRadius: '5px',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-              fontSize: '14px'
-            }}
-          >
-            Box Score URL
-          </button>
           <button
             onClick={() => setUploadMode("file")}
             style={{
@@ -412,6 +397,21 @@ export default function UploadDual({ demoMode = false }) {
             }}
           >
             Paste CSV
+          </button>
+          <button
+            onClick={() => setUploadMode("url")}
+            style={{
+              padding: '10px 20px',
+              backgroundColor: uploadMode === "url" ? '#3498db' : '#ecf0f1',
+              color: uploadMode === "url" ? 'white' : '#000',
+              border: 'none',
+              borderRadius: '5px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              fontSize: '14px'
+            }}
+          >
+            Box Score URL
           </button>
         </div>
 

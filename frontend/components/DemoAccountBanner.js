@@ -1,12 +1,11 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { ADMIN_EMAIL } from "../lib/contact";
 
 export default function DemoAccountBanner() {
   const [showBanner, setShowBanner] = useState(false);
-  const bannerRef = useRef(null);
   const pathname = usePathname();
 
   useEffect(() => {
@@ -26,33 +25,12 @@ export default function DemoAccountBanner() {
     loadUser();
   }, [pathname]);
 
-  useEffect(() => {
-    const root = document.documentElement;
-
-    const updateNavOffset = () => {
-      if (showBanner && bannerRef.current) {
-        const height = bannerRef.current.offsetHeight;
-        root.style.setProperty("--site-nav-top", `${height + 8}px`);
-      } else {
-        root.style.setProperty("--site-nav-top", "16px");
-      }
-    };
-
-    updateNavOffset();
-    window.addEventListener("resize", updateNavOffset);
-    return () => {
-      window.removeEventListener("resize", updateNavOffset);
-      root.style.setProperty("--site-nav-top", "16px");
-    };
-  }, [showBanner]);
-
   if (!showBanner) {
     return null;
   }
 
   return (
     <div
-      ref={bannerRef}
       role="status"
       style={{
         backgroundColor: "#fff8e6",
@@ -65,7 +43,7 @@ export default function DemoAccountBanner() {
         textAlign: "center",
       }}
     >
-      <strong>Demo.</strong> Use homepage auto-sync to load the latest 20 completed NBL1 games.
+      <strong>Demo.</strong> Upload a box score on Home and save it to Advanced Box Scores.
     </div>
   );
 }

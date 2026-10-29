@@ -2,8 +2,6 @@
 
 import { useRouter } from "next/navigation";
 import { FormEvent, Suspense, useState } from "react";
-import MetricDefinitionsSection from "../../components/MetricDefinitionsSection";
-import UploadDual from "../../components/UploadDual";
 
 function SitePasswordForm() {
   const router = useRouter();
@@ -53,7 +51,7 @@ function SitePasswordForm() {
           style={{
             width: "100%",
             maxWidth: "420px",
-            margin: "0 auto 40px auto",
+            margin: "0 auto",
             backgroundColor: "#fff",
             padding: "32px",
             borderRadius: "10px",
@@ -64,7 +62,7 @@ function SitePasswordForm() {
             Bounce PASS
           </h1>
           <p style={{ color: "#7f8c8d", margin: "0 0 24px 0", textAlign: "center" }}>
-            Enter the site password to open the demo.
+            Enter the site password to open the platform.
           </p>
 
           <form onSubmit={handleSubmit} style={{ display: "grid", gap: "16px" }}>
@@ -115,18 +113,6 @@ function SitePasswordForm() {
             </div>
           )}
         </div>
-
-        <main
-          style={{
-            backgroundColor: "#fff",
-            padding: "30px",
-            borderRadius: "10px",
-            boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
-          }}
-        >
-          <UploadDual demoMode />
-          <MetricDefinitionsSection compact />
-        </main>
       </div>
     </div>
   );

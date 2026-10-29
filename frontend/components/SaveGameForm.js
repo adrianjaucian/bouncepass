@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import api from "../lib/api";
-import { GENDER_OPTIONS, REGION_OPTIONS } from "../lib/gender";
 
 export default function SaveGameForm({
   results,
@@ -9,8 +9,6 @@ export default function SaveGameForm({
   initialGameDate = "",
   initialHomeTeamName = "",
   initialAwayTeamName = "",
-  initialGender = "men",
-  initialRegion = "",
   initialFixtureId = "",
   initialSourceUrl = "",
   initialProvider = "",
@@ -21,16 +19,13 @@ export default function SaveGameForm({
   const [gameDate, setGameDate] = useState(initialGameDate || today);
   const [homeTeamName, setHomeTeamName] = useState(initialHomeTeamName || "");
   const [awayTeamName, setAwayTeamName] = useState(initialAwayTeamName || "");
-  const [gender, setGender] = useState(initialGender || "men");
-  const [region, setRegion] = useState(initialRegion || "");
+  const [savedGameId, setSavedGameId] = useState(null);
 
   useEffect(() => {
     if (initialGameDate) setGameDate(initialGameDate);
     if (initialHomeTeamName) setHomeTeamName(initialHomeTeamName);
     if (initialAwayTeamName) setAwayTeamName(initialAwayTeamName);
-    if (initialGender) setGender(initialGender);
-    if (initialRegion) setRegion(initialRegion);
-  }, [initialGameDate, initialHomeTeamName, initialAwayTeamName, initialGender, initialRegion]);
+  }, [initialGameDate, initialHomeTeamName, initialAwayTeamName]);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -61,22 +56,17 @@ export default function SaveGameForm({
       setError("Away team name is required when away stats are included.");
       return;
     }
-    if (!gender) {
-      setError("Select whether this is a men's or women's game.");
-      return;
-    }
 
     setSaving(true);
     setError("");
     setMessage("");
+    setSavedGameId(null);
 
     try {
       const payload = {
         game_date: gameDate,
         home_team_name: homeTeamName.trim(),
         away_team_name: hasAwayTeam ? awayTeamName.trim() : null,
-        gender,
-        region: region || null,
         results,
       };
       if (initialFixtureId) payload.fixture_id = initialFixtureId;
@@ -84,7 +74,8 @@ export default function SaveGameForm({
       if (initialProvider) payload.provider = initialProvider;
 
       const res = await api.post("/games", payload);
-      setMessage(`Game saved (ID ${res.data.id}). View it on Advanced Box Scores.`);
+      setSavedGameId(res.data.id);
+      setMessage(`Game saved (ID ${res.data.id}).`);
     } catch (err) {
       const serverMessage =
         err?.response?.data?.error ||
@@ -100,7 +91,7 @@ export default function SaveGameForm({
   return (
     <div style={{ marginTop: '24px', padding: '20px', backgroundColor: '#f4f8fb', borderRadius: '8px', border: '1px solid #d6e4f0' }}>
       <h3 style={{ margin: '0 0 16px 0', color: '#2c3e50' }}>
-        {requireAuth ? "Bounce — Save to Your Account" : "Save Game"}
+        {requireAuth ? "Bounce — Save to Your Account" : "Save to Advanced Box Scores"}
       </h3>
       {requireAuth && (
         <p style={{ margin: '0 0 12px 0', color: '#56616b', fontSize: '13px' }}>
@@ -108,35 +99,6 @@ export default function SaveGameForm({
         </p>
       )}
       <div style={{ display: 'grid', gap: '12px', maxWidth: '520px' }}>
-        <label style={{ display: 'grid', gap: '6px', color: '#000', fontSize: '14px' }}>
-          Competition
-          <select
-            value={gender}
-            onChange={(e) => setGender(e.target.value)}
-            style={{ padding: '10px 12px', borderRadius: '6px', border: '1px solid #d0d7de', color: '#000', backgroundColor: '#fff' }}
-          >
-            {GENDER_OPTIONS.filter((option) => option.value).map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label style={{ display: 'grid', gap: '6px', color: '#000', fontSize: '14px' }}>
-          Region
-          <select
-            value={region}
-            onChange={(e) => setRegion(e.target.value)}
-            style={{ padding: '10px 12px', borderRadius: '6px', border: '1px solid #d0d7de', color: '#000', backgroundColor: '#fff' }}
-          >
-            <option value="">Unspecified</option>
-            {REGION_OPTIONS.filter((option) => option.value).map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
         <label style={{ display: 'grid', gap: '6px', color: '#000', fontSize: '14px' }}>
           Game Date
           <input
@@ -187,7 +149,10 @@ export default function SaveGameForm({
       </div>
       {message && (
         <div style={{ marginTop: '12px', color: '#1e7e34', backgroundColor: '#e8f8ee', padding: '12px', borderRadius: '6px', border: '1px solid #b7e4c7' }}>
-          {message}
+          {message}{" "}
+          <Link href={savedGameId ? `/saved-games/${savedGameId}` : "/saved-games"} style={{ color: "#1e7e34", fontWeight: 700 }}>
+            View on Advanced Box Scores
+          </Link>
         </div>
       )}
       {error && (

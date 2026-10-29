@@ -3,14 +3,13 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
-import SiteNav from "../../components/SiteNav";
 import SeasonLeadersSection from "../../components/SeasonLeadersSection";
 import TeamDashboardLink from "../../components/TeamDashboardLink";
 import TeamLeagueLeaders from "../../components/TeamLeagueLeaders";
 import TrendCharts, { TEAM_FEATURED_TREND_STAT, TEAM_TREND_STATS } from "../../components/TrendCharts";
 import api from "../../lib/api";
 import { getMetricAnchor } from "../../lib/metricDefinitions";
-import { GENDER_TABS, REGION_OPTIONS, decodeTeamOption, encodeTeamOption, formatGenderLabel, formatRegionLabel, genderBadgeStyle, regionBadgeStyle } from "../../lib/gender";
+import { decodeTeamOption } from "../../lib/gender";
 
 type TeamOption = {
   name: string;
@@ -175,74 +174,52 @@ function MetricCard({
   );
 }
 
+function teamNameFromParam(value: string | null) {
+  if (!value) return "";
+  if (value.includes("::")) {
+    return decodeTeamOption(value).name.trim();
+  }
+  return value.trim();
+}
+
 function TeamDashboardContent() {
   const searchParams = useSearchParams();
   const [teamOptions, setTeamOptions] = useState<TeamOption[]>([]);
   const [teamSelection, setTeamSelection] = useState(BLANK_TEAM_SELECTION);
-  const [genderFilter, setGenderFilter] = useState("men");
-  const [regionFilter, setRegionFilter] = useState("");
   const [dashboard, setDashboard] = useState<TeamDashboard | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const teamParam = searchParams.get("team");
   const pendingDeepLink = Boolean(teamParam);
+  const hasTeamSelected = Boolean(teamSelection.trim());
 
-  const selectedTeam = decodeTeamOption(teamSelection);
-  const hasTeamSelected = Boolean(selectedTeam.name.trim() && selectedTeam.gender && selectedTeam.region);
-
-  const fetchTeamDashboard = useCallback(
-    async (team: { name: string; gender: string; region: string }) => {
-      const res = await api.get("/teams/dashboard", {
-        params: {
-          team_name: team.name.trim(),
-          gender: team.gender,
-          region: team.region,
-        },
-      });
-      return res.data as TeamDashboard;
-    },
-    [],
-  );
+  const fetchTeamDashboard = useCallback(async (teamName: string) => {
+    const res = await api.get("/teams/dashboard", {
+      params: { team_name: teamName.trim() },
+    });
+    return res.data as TeamDashboard;
+  }, []);
 
   useEffect(() => {
-    const teamParam = searchParams.get("team");
-    if (!teamParam) return;
-
-    const decoded = decodeTeamOption(teamParam);
-    if (!decoded.name || !decoded.gender || !decoded.region) return;
-
-    if (decoded.gender === "men" || decoded.gender === "women") {
-      setGenderFilter(decoded.gender);
-    }
-    setRegionFilter(decoded.region);
-    setTeamSelection(encodeTeamOption(decoded.name, decoded.gender, decoded.region));
+    const name = teamNameFromParam(searchParams.get("team"));
+    if (!name) return;
+    setTeamSelection(name);
   }, [searchParams]);
 
   useEffect(() => {
     const loadTeams = async () => {
       try {
-        const res = await api.get("/teams", {
-          params: { gender: genderFilter, region: regionFilter },
-        });
+        const res = await api.get("/teams");
         const options: TeamOption[] = res.data?.options || [];
-        setTeamOptions(options);
+        const uniqueNames = Array.from(new Map(options.map((option) => [option.name, option])).values());
+        setTeamOptions(uniqueNames);
 
         if (!teamSelection) {
           return;
         }
 
-        const current = decodeTeamOption(teamSelection);
-        if (!current.name.trim()) {
-          return;
-        }
-
-        const stillValid = options.some(
-          (option) =>
-            option.name === current.name &&
-            option.gender === current.gender &&
-            option.region === current.region,
-        );
+        const stillValid = uniqueNames.some((option) => option.name === teamSelection);
         if (!stillValid) {
           setTeamSelection(BLANK_TEAM_SELECTION);
         }
@@ -251,7 +228,7 @@ function TeamDashboardContent() {
       }
     };
     loadTeams();
-  }, [genderFilter, regionFilter]);
+  }, []);
 
   useEffect(() => {
     const loadDashboard = async () => {
@@ -264,11 +241,7 @@ function TeamDashboardContent() {
       setLoading(true);
       setError("");
       try {
-        const data = await fetchTeamDashboard({
-          name: selectedTeam.name.trim(),
-          gender: selectedTeam.gender!,
-          region: selectedTeam.region!,
-        });
+        const data = await fetchTeamDashboard(teamSelection.trim());
         setDashboard(data);
       } catch (err: any) {
         const message =
@@ -282,19 +255,15 @@ function TeamDashboardContent() {
       }
     };
     loadDashboard();
-  }, [teamSelection, hasTeamSelected, selectedTeam.name, selectedTeam.gender, selectedTeam.region, fetchTeamDashboard]);
+  }, [teamSelection, hasTeamSelected, fetchTeamDashboard]);
 
   const handleSelectTeamFromLeaders = (team: {
     team_name: string;
     gender?: string | null;
     region?: string | null;
   }) => {
-    if (!team.team_name || !team.gender || !team.region) return;
-    if (team.gender === "men" || team.gender === "women") {
-      setGenderFilter(team.gender);
-    }
-    setRegionFilter(team.region || "");
-    setTeamSelection(encodeTeamOption(team.team_name, team.gender, team.region));
+    if (!team.team_name) return;
+    setTeamSelection(team.team_name);
   };
 
   const formatRating = (value?: number | null) => (value == null ? "—" : value.toFixed(1));
@@ -316,11 +285,9 @@ function TeamDashboardContent() {
         >
           <h1 style={{ color: "#2c3e50", margin: "0 0 10px 0", fontSize: "2.2em" }}>Team Metrics</h1>
           <p style={{ color: "#7f8c8d", margin: 0 }}>
-            Season leaders across the league, or drill into one men&apos;s or women&apos;s team in a specific NBL1 region
+            Season leaders across saved games, or pick a team to see efficiency, trends, and roster stats.
           </p>
         </header>
-
-        <SiteNav />
 
         <main
           style={{
@@ -331,46 +298,6 @@ function TeamDashboardContent() {
           }}
         >
           <div style={{ marginBottom: "24px", display: "grid", gap: "16px", maxWidth: "520px" }}>
-            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-              {GENDER_TABS.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setGenderFilter(option.value)}
-                  style={{
-                    padding: "8px 14px",
-                    backgroundColor: genderFilter === option.value ? "#3498db" : "#ecf0f1",
-                    color: genderFilter === option.value ? "#fff" : "#2c3e50",
-                    border: "none",
-                    borderRadius: "6px",
-                    fontWeight: "bold",
-                    cursor: "pointer",
-                  }}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-              {REGION_OPTIONS.map((option) => (
-                <button
-                  key={option.value || "all"}
-                  type="button"
-                  onClick={() => setRegionFilter(option.value)}
-                  style={{
-                    padding: "8px 14px",
-                    backgroundColor: regionFilter === option.value ? "#27ae60" : "#ecf0f1",
-                    color: regionFilter === option.value ? "#fff" : "#2c3e50",
-                    border: "none",
-                    borderRadius: "6px",
-                    fontWeight: "bold",
-                    cursor: "pointer",
-                  }}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
             <label style={{ display: "grid", gap: "8px", color: "#000", fontSize: "14px" }}>
               Team
               <select
@@ -386,11 +313,8 @@ function TeamDashboardContent() {
               >
                 <option value={BLANK_TEAM_SELECTION}>Season Leaders</option>
                 {teamOptions.map((option) => (
-                  <option
-                    key={encodeTeamOption(option.name, option.gender || genderFilter, option.region || regionFilter)}
-                    value={encodeTeamOption(option.name, option.gender || genderFilter, option.region || regionFilter)}
-                  >
-                    {option.label}
+                  <option key={option.name} value={option.name}>
+                    {option.name}
                   </option>
                 ))}
               </select>
@@ -398,11 +322,7 @@ function TeamDashboardContent() {
           </div>
 
           {!hasTeamSelected && !pendingDeepLink && (
-            <TeamLeagueLeaders
-              gender={genderFilter}
-              region={regionFilter}
-              onSelectTeam={handleSelectTeamFromLeaders}
-            />
+            <TeamLeagueLeaders onSelectTeam={handleSelectTeamFromLeaders} />
           )}
 
           {hasTeamSelected && loading && <p style={{ color: "#56616b" }}>Loading dashboard...</p>}
@@ -427,49 +347,6 @@ function TeamDashboardContent() {
                   <h1 style={{ margin: 0, color: "#2c3e50", fontSize: "2.2em", fontWeight: "bold", lineHeight: 1.15 }}>
                     {dashboard.team_name}
                   </h1>
-                  {dashboard.gender && (
-                    <span
-                      style={{
-                        ...genderBadgeStyle(dashboard.gender),
-                        fontSize: "12px",
-                        fontWeight: 700,
-                        padding: "4px 10px",
-                        borderRadius: "999px",
-                      }}
-                    >
-                      {formatGenderLabel(dashboard.gender)}
-                    </span>
-                  )}
-                  {dashboard.region && (
-                    <span
-                      style={{
-                        ...regionBadgeStyle(dashboard.region),
-                        fontSize: "12px",
-                        fontWeight: 700,
-                        padding: "4px 10px",
-                        borderRadius: "999px",
-                      }}
-                    >
-                      {formatRegionLabel(dashboard.region)}
-                    </span>
-                  )}
-                  <Link
-                    href={`/scouting?tab=team&team=${encodeURIComponent(
-                      encodeTeamOption(dashboard.team_name, dashboard.gender || "", dashboard.region || ""),
-                    )}`}
-                    style={{
-                      padding: "6px 12px",
-                      backgroundColor: "#fff9e6",
-                      color: "#b8860b",
-                      border: "1px solid #f5d76e",
-                      borderRadius: "6px",
-                      textDecoration: "none",
-                      fontSize: "13px",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Add to compare
-                  </Link>
                 </div>
                 <p style={{ margin: 0, color: "#56616b" }}>
                   {dashboard.games_played} saved game{dashboard.games_played === 1 ? "" : "s"} · Record{" "}
@@ -596,12 +473,7 @@ function TeamDashboardContent() {
                             <td style={{ padding: "10px", color: "#000" }}>{game.game_date}</td>
                             <td style={{ padding: "10px", color: "#000" }}>
                               {game.opponent ? (
-                                <TeamDashboardLink
-                                  teamName={game.opponent}
-                                  gender={dashboard.gender}
-                                  region={dashboard.region}
-                                  label={game.opponent}
-                                />
+                                <TeamDashboardLink teamName={game.opponent} label={game.opponent} />
                               ) : (
                                 "—"
                               )}

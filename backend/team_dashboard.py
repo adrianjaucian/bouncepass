@@ -626,16 +626,14 @@ def build_team_league_leaders(
     filtered = filter_games_by_region(filtered, region)
     parsed_results = parse_game_results(filtered)
 
-    aggregates: Dict[Tuple[str, str, str], Dict[str, float]] = {}
-    team_meta: Dict[Tuple[str, str, str], Dict[str, str]] = {}
-    games_played: Dict[Tuple[str, str, str], int] = {}
+    aggregates: Dict[str, Dict[str, float]] = {}
+    team_meta: Dict[str, Dict[str, str]] = {}
+    games_played: Dict[str, int] = {}
 
     for game in filtered:
         results = parsed_results[game.id]
         game_gender = normalize_gender(getattr(game, "gender", None))
         game_region = normalize_region(getattr(game, "region", None))
-        if not game_gender or not game_region:
-            continue
 
         sides = [
             ("home", game.home_team_name, "away"),
@@ -648,13 +646,13 @@ def build_team_league_leaders(
             if not rows:
                 continue
             opponent_rows = filter_player_rows(results.get(opponent_side))
-            key = (normalize_team_name(str(team_name)), game_gender, game_region)
+            key = normalize_team_name(str(team_name))
             if key not in aggregates:
                 aggregates[key] = _empty_aggregate()
                 team_meta[key] = {
                     "team_name": str(team_name).strip(),
-                    "gender": game_gender,
-                    "region": game_region,
+                    "gender": game_gender or "",
+                    "region": game_region or "",
                 }
                 games_played[key] = 0
 

@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import SiteNav from "../../components/SiteNav";
 import { METRIC_SECTIONS } from "../../lib/metricDefinitions";
 
 const sectionStyle = {
@@ -51,8 +50,6 @@ export default function MetricDefinitionsPage() {
             All minute-scaled rates use <strong>40-minute FIBA</strong> game length.
           </p>
         </header>
-
-        <SiteNav />
 
         <main
           style={{

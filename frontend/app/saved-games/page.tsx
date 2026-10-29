@@ -3,10 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import ExportSavedGameButton from "../../components/ExportSavedGameButton";
-import SiteNav from "../../components/SiteNav";
 import api from "../../lib/api";
 import { formatSavedGameLabel } from "../../lib/gameResultsUtils";
-import { GENDER_OPTIONS, REGION_OPTIONS, formatGenderLabel, formatRegionLabel, genderBadgeStyle, regionBadgeStyle } from "../../lib/gender";
 
 type SavedGameSummary = {
   id: number;
@@ -25,18 +23,9 @@ const PAGE_SIZE = 100;
 export default function SavedGamesPage() {
   const [games, setGames] = useState<SavedGameSummary[]>([]);
   const [total, setTotal] = useState(0);
-  const [genderFilter, setGenderFilter] = useState("");
-  const [regionFilter, setRegionFilter] = useState("");
-  const [teamSearch, setTeamSearch] = useState("");
-  const [debouncedTeamSearch, setDebouncedTeamSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedTeamSearch(teamSearch.trim()), 300);
-    return () => window.clearTimeout(timer);
-  }, [teamSearch]);
 
   const loadGames = useCallback(
     async ({ append = false, offset = 0 }: { append?: boolean; offset?: number } = {}) => {
@@ -52,9 +41,6 @@ export default function SavedGamesPage() {
           limit: PAGE_SIZE,
           offset,
         };
-        if (genderFilter) params.gender = genderFilter;
-        if (regionFilter) params.region = regionFilter;
-        if (debouncedTeamSearch) params.team = debouncedTeamSearch;
 
         const res = await api.get("/games", { params });
         const nextGames: SavedGameSummary[] = res.data?.games || [];
@@ -73,7 +59,7 @@ export default function SavedGamesPage() {
         setLoadingMore(false);
       }
     },
-    [genderFilter, regionFilter, debouncedTeamSearch],
+    [],
   );
 
   useEffect(() => {
@@ -101,72 +87,7 @@ export default function SavedGamesPage() {
           <p style={{ color: "#7f8c8d", margin: 0 }}>Browse games saved to your database. Teams are listed as Home Team vs Away Team</p>
         </header>
 
-        <SiteNav />
-
         <main style={{ backgroundColor: "#fff", padding: "30px", borderRadius: "10px", boxShadow: "0 2px 10px rgba(0,0,0,0.1)" }}>
-          <div style={{ display: "flex", gap: "10px", marginBottom: "12px", flexWrap: "wrap" }}>
-            {GENDER_OPTIONS.map((option) => (
-              <button
-                key={option.value || "all"}
-                type="button"
-                onClick={() => setGenderFilter(option.value)}
-                style={{
-                  padding: "10px 16px",
-                  backgroundColor: genderFilter === option.value ? "#3498db" : "#ecf0f1",
-                  color: genderFilter === option.value ? "#fff" : "#2c3e50",
-                  border: "none",
-                  borderRadius: "6px",
-                  fontWeight: "bold",
-                  cursor: "pointer",
-                }}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-
-          <div style={{ display: "flex", gap: "10px", marginBottom: "20px", flexWrap: "wrap" }}>
-            {REGION_OPTIONS.map((option) => (
-              <button
-                key={option.value || "all-regions"}
-                type="button"
-                onClick={() => setRegionFilter(option.value)}
-                style={{
-                  padding: "10px 16px",
-                  backgroundColor: regionFilter === option.value ? "#27ae60" : "#ecf0f1",
-                  color: regionFilter === option.value ? "#fff" : "#2c3e50",
-                  border: "none",
-                  borderRadius: "6px",
-                  fontWeight: "bold",
-                  cursor: "pointer",
-                }}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-
-          <div style={{ marginBottom: "20px", maxWidth: "420px" }}>
-            <label htmlFor="team-search" style={{ display: "block", marginBottom: "8px", color: "#2c3e50", fontWeight: "bold", fontSize: "14px" }}>
-              Search by team
-            </label>
-            <input
-              id="team-search"
-              type="search"
-              value={teamSearch}
-              onChange={(e) => setTeamSearch(e.target.value)}
-              placeholder="e.g. Spiders, Logan, Hornsby..."
-              style={{
-                width: "100%",
-                padding: "12px 14px",
-                borderRadius: "8px",
-                border: "1px solid #d0d7de",
-                fontSize: "14px",
-                color: "#000",
-              }}
-            />
-          </div>
-
           {loading && <p style={{ color: "#56616b" }}>Loading saved games...</p>}
           {error && (
             <div style={{ color: "#c0392b", backgroundColor: "#fdecea", padding: "14px", borderRadius: "8px", border: "1px solid #f5c6cb", marginBottom: "16px" }}>
@@ -179,14 +100,8 @@ export default function SavedGamesPage() {
 
           {!loading && !error && total === 0 && (
             <p style={{ color: "#56616b" }}>
-              No games saved yet. Use the calculator on the{" "}
-              <Link href="/login" style={{ color: "#3498db" }}>password page</Link> or sync NBL1 fixtures from Home.
-            </p>
-          )}
-
-          {!loading && !error && total > 0 && games.length === 0 && (
-            <p style={{ color: "#56616b" }}>
-              No games match your filters. Try a different team name or gender.
+              No games saved yet. Upload a box score on{" "}
+              <Link href="/" style={{ color: "#3498db" }}>Home</Link> and save it here.
             </p>
           )}
 
@@ -226,28 +141,6 @@ export default function SavedGamesPage() {
                               results: null,
                               variant: "list",
                             })}
-                          </span>
-                          <span
-                            style={{
-                              ...genderBadgeStyle(game.gender || ""),
-                              fontSize: "11px",
-                              fontWeight: 700,
-                              padding: "3px 8px",
-                              borderRadius: "999px",
-                            }}
-                          >
-                            {formatGenderLabel(game.gender || "")}
-                          </span>
-                          <span
-                            style={{
-                              ...regionBadgeStyle(game.region || ""),
-                              fontSize: "11px",
-                              fontWeight: 700,
-                              padding: "3px 8px",
-                              borderRadius: "999px",
-                            }}
-                          >
-                            {formatRegionLabel(game.region || "")}
                           </span>
                         </div>
                         <div style={{ color: "#56616b", fontSize: "14px", marginTop: "4px" }}>

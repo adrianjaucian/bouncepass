@@ -88,7 +88,7 @@ def collect_team_options(
             if not name:
                 continue
             cleaned = str(name).strip()
-            key = (cleaned.lower(), gender or "", region or "")
+            key = (cleaned.lower(),) if not require_gender and not require_region else (cleaned.lower(), gender or "", region or "")
             if key in seen:
                 continue
             seen.add(key)

@@ -127,7 +127,7 @@ export default function TeamLeagueLeaders({ gender = "men", region = "", onSelec
   if (!leaders?.league_teams) {
     return (
       <p style={{ color: "#56616b", margin: "0 0 24px 0" }}>
-        No team data yet for this filter. Save more games or try another gender or region.
+        No team data yet. Save a box score from Home to populate season leaders.
       </p>
     );
   }

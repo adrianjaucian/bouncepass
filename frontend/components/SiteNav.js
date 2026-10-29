@@ -2,211 +2,131 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useId, useRef, useState } from "react";
-import { BUG_REPORT_MAILTO, CONTACT_MAILTO } from "../lib/contact";
 
 const NAV_ITEMS = [
-  { href: "/", label: "Home", color: "#3498db" },
-  { href: "/saved-games", label: "Advanced Box Scores", color: "#2c3e50" },
-  { href: "/team-dashboard", label: "Team Metrics", color: "#9b59b6" },
-  { href: "/player-dashboard", label: "Player Metrics", color: "#e67e22" },
-  { href: "/scouting", label: "Head-To-Head Scouting", color: "#d4a017" },
-  { href: "/metric-definitions", label: "Metric Definitions", color: "#16a085" },
+  { href: "/saved-games", label: "Advanced Box Scores" },
+  { href: "/team-dashboard", label: "Team Metrics" },
+  { href: "/player-dashboard", label: "Player Metrics" },
+  { href: "/scouting", label: "Player Comparison" },
+  { href: "/metric-definitions", label: "Metric Definitions" },
 ];
 
 export default function SiteNav() {
-  const [open, setOpen] = useState(false);
-  const [userEmail, setUserEmail] = useState("");
   const pathname = usePathname();
   const router = useRouter();
-  const menuId = useId();
-  const rootRef = useRef(null);
 
-  useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
-
-  useEffect(() => {
-    const loadUser = async () => {
-      try {
-        const response = await fetch("/api/auth/me");
-        if (response.status === 403) {
-          await fetch("/api/auth/logout", { method: "POST" });
-          router.replace("/login");
-          return;
-        }
-        if (!response.ok) {
-          setUserEmail("Demo");
-          return;
-        }
-        const data = await response.json();
-        setUserEmail(data.email ? "Demo" : "");
-      } catch {
-        setUserEmail("");
-      }
-    };
-    loadUser();
-  }, [pathname]);
-
-  useEffect(() => {
-    if (!open) return undefined;
-
-    const handlePointerDown = (event) => {
-      if (rootRef.current && !rootRef.current.contains(event.target)) {
-        setOpen(false);
-      }
-    };
-
-    const handleKeyDown = (event) => {
-      if (event.key === "Escape") {
-        setOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [open]);
+  if (pathname === "/login" || pathname === "/register") {
+    return null;
+  }
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
-    setOpen(false);
     router.replace("/login");
     router.refresh();
   };
 
+  const isHome = pathname === "/";
+
   return (
-    <div
-      ref={rootRef}
+    <header
       style={{
-        position: "fixed",
-        top: "var(--site-nav-top, 16px)",
-        left: "16px",
+        position: "sticky",
+        top: 0,
         zIndex: 1000,
+        backgroundColor: "#1b2838",
+        borderBottom: "3px solid #f1c40f",
         fontFamily: "Arial, sans-serif",
       }}
     >
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={menuId}
-        aria-haspopup="true"
-        onClick={() => setOpen((current) => !current)}
+      <nav
+        aria-label="Site navigation"
         style={{
-          padding: "8px 12px",
-          backgroundColor: "#2c3e50",
-          color: "#fff",
-          border: "none",
-          borderRadius: "6px",
-          fontWeight: "bold",
-          fontSize: "12px",
-          cursor: "pointer",
-          boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)",
-          lineHeight: 1.2,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "24px",
+          flexWrap: "nowrap",
+          padding: "10px 28px",
+          width: "100%",
+          boxSizing: "border-box",
+          overflowX: "auto",
         }}
       >
-        {open ? "Close Menu" : "Menu"}
-      </button>
-
-      {open && (
-        <nav
-          id={menuId}
-          aria-label="Site navigation"
+        <Link
+          href="/"
+          aria-label="Bounce PASS home"
+          aria-current={isHome ? "page" : undefined}
           style={{
-            position: "absolute",
-            top: "calc(100% + 8px)",
-            left: 0,
-            minWidth: "200px",
-            display: "flex",
-            flexDirection: "column",
-            gap: "8px",
-            padding: "12px",
-            backgroundColor: "#fff",
-            border: "1px solid #d6e4f0",
-            borderRadius: "10px",
-            boxShadow: "0 8px 24px rgba(0, 0, 0, 0.14)",
+            color: "#f1c40f",
+            textDecoration: "none",
+            fontWeight: 800,
+            fontSize: "22px",
+            letterSpacing: "0.02em",
+            lineHeight: 1.1,
+            padding: "6px 12px",
+            borderRadius: "6px",
+            backgroundColor: "rgba(241, 196, 15, 0.18)",
+            boxShadow: "inset 0 0 0 1px #f1c40f",
+            whiteSpace: "nowrap",
+            flexShrink: 0,
           }}
         >
-          {userEmail && (
-            <div style={{ padding: "8px 10px", color: "#56616b", fontSize: "13px", borderBottom: "1px solid #eef2f6" }}>
-              Site unlocked<br />
-              <strong style={{ color: "#2c3e50" }}>{userEmail}</strong>
-            </div>
-          )}
-          {NAV_ITEMS.map((item) => {
-            const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
+          Bounce PASS
+        </Link>
 
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "flex-end",
+            gap: "4px",
+            flexWrap: "nowrap",
+            marginLeft: "auto",
+            flexShrink: 0,
+          }}
+        >
+          {NAV_ITEMS.map((item) => {
+            const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                onClick={() => setOpen(false)}
                 aria-current={isActive ? "page" : undefined}
                 style={{
-                  padding: "12px 14px",
-                  backgroundColor: item.color,
-                  color: "#fff",
-                  borderRadius: "6px",
+                  color: isActive ? "#f1c40f" : "#ecf0f1",
                   textDecoration: "none",
-                  fontWeight: "bold",
+                  fontWeight: isActive ? 700 : 600,
                   fontSize: "14px",
-                  outline: isActive ? "2px solid #f1c40f" : "none",
-                  outlineOffset: "2px",
+                  padding: "8px 12px",
+                  borderRadius: "6px",
+                  backgroundColor: isActive ? "rgba(241, 196, 15, 0.14)" : "transparent",
+                  whiteSpace: "nowrap",
                 }}
               >
                 {item.label}
               </Link>
             );
           })}
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px", paddingTop: "4px", borderTop: "1px solid #eef2f6" }}>
-            <a
-              href={CONTACT_MAILTO}
-              onClick={() => setOpen(false)}
-              style={{
-                padding: "10px 14px",
-                color: "#56616b",
-                textDecoration: "none",
-                fontSize: "13px",
-                fontWeight: 600,
-              }}
-            >
-              Contact us
-            </a>
-            <a
-              href={BUG_REPORT_MAILTO}
-              onClick={() => setOpen(false)}
-              style={{
-                padding: "10px 14px",
-                color: "#56616b",
-                textDecoration: "none",
-                fontSize: "13px",
-                fontWeight: 600,
-              }}
-            >
-              Report a bug
-            </a>
-          </div>
           <button
             type="button"
             onClick={handleLogout}
             style={{
-              padding: "12px 14px",
-              backgroundColor: "#ecf0f1",
-              color: "#2c3e50",
-              border: "1px solid #d0d7de",
+              marginLeft: "8px",
+              padding: "8px 12px",
+              backgroundColor: "transparent",
+              color: "#bdc3c7",
+              border: "1px solid #4a5a6a",
               borderRadius: "6px",
-              fontWeight: "bold",
-              fontSize: "14px",
+              fontWeight: 600,
+              fontSize: "13px",
               cursor: "pointer",
+              whiteSpace: "nowrap",
             }}
           >
             Lock site
           </button>
-        </nav>
-      )}
-    </div>
+        </div>
+      </nav>
+    </header>
   );
 }

@@ -1,10 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
 import TrendCharts from "./TrendCharts";
 import TeamDashboardLink from "./TeamDashboardLink";
-import { formatGenderLabel, formatRegionLabel, genderBadgeStyle, regionBadgeStyle } from "../lib/gender";
 
 function formatPercent(value) {
   return value == null ? "—" : `${(value * 100).toFixed(1)}%`;
@@ -57,23 +55,8 @@ const selectedHeadingStyle = {
   lineHeight: 1.15,
 };
 
-function getPlayerTeamContexts(games) {
-  const contexts = new Map();
-  for (const game of games || []) {
-    const gender = game.gender;
-    const region = game.region;
-    if (!gender && !region) continue;
-    const key = `${gender || ""}:${region || ""}`;
-    if (!contexts.has(key)) {
-      contexts.set(key, { gender, region });
-    }
-  }
-  return Array.from(contexts.values());
-}
-
 export default function PlayerDashboardDetail({ dashboard }) {
   const stats = dashboard?.stats;
-  const teamContexts = useMemo(() => getPlayerTeamContexts(dashboard?.games), [dashboard?.games]);
 
   if (!dashboard || !stats) return null;
 
@@ -84,38 +67,8 @@ export default function PlayerDashboardDetail({ dashboard }) {
       <div style={{ marginBottom: "28px" }}>
         <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", marginBottom: "8px" }}>
           <h1 style={selectedHeadingStyle}>{dashboard.player_name}</h1>
-          {teamContexts.map((context) => (
-            <span key={`${context.gender || "all"}-${context.region || "all"}`} style={{ display: "inline-flex", gap: "8px", flexWrap: "wrap" }}>
-              {context.gender && (
-                <span
-                  style={{
-                    ...genderBadgeStyle(context.gender),
-                    fontSize: "12px",
-                    fontWeight: 700,
-                    padding: "4px 10px",
-                    borderRadius: "999px",
-                  }}
-                >
-                  {formatGenderLabel(context.gender)}
-                </span>
-              )}
-              {context.region && (
-                <span
-                  style={{
-                    ...regionBadgeStyle(context.region),
-                    fontSize: "12px",
-                    fontWeight: 700,
-                    padding: "4px 10px",
-                    borderRadius: "999px",
-                  }}
-                >
-                  {formatRegionLabel(context.region)}
-                </span>
-              )}
-            </span>
-          ))}
           <Link
-            href={`/scouting?tab=player&player=${encodeURIComponent(dashboard.player_name)}`}
+            href={`/scouting?player=${encodeURIComponent(dashboard.player_name)}`}
             style={{
               padding: "6px 12px",
               backgroundColor: "#fff9e6",

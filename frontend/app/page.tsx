@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import SiteNav from "../components/SiteNav";
-import Nbl1FixtureSync from "../components/Nbl1FixtureSync";
+import UploadDual from "../components/UploadDual";
 
 const NAV_GUIDE_ITEMS = [
   {
@@ -12,7 +11,7 @@ const NAV_GUIDE_ITEMS = [
     backgroundColor: "#eef1f5",
     borderColor: "#c8d0d9",
     description:
-      "Browse every saved game in your database. Filter by gender, region, or team name search. Open a game for full advanced player stats, edit metadata, export, or delete.",
+      "Browse every saved game in your database. Open a game for full advanced player stats, edit metadata, export, or delete.",
   },
   {
     href: "/team-dashboard",
@@ -21,7 +20,7 @@ const NAV_GUIDE_ITEMS = [
     backgroundColor: "#f9f4fd",
     borderColor: "#e8d4f4",
     description:
-      "View league-wide team leaders, or select a specific team to see efficiency ratings, trends, roster leaders, and game log. Pick men's/women's and a region, then choose a team from the dropdown.",
+      "View league-wide team leaders, or select a team to see efficiency ratings, trends, roster leaders, and game log.",
   },
   {
     href: "/player-dashboard",
@@ -30,16 +29,15 @@ const NAV_GUIDE_ITEMS = [
     backgroundColor: "#fef6ee",
     borderColor: "#f5dcc8",
     description:
-      "Search any player by name for season totals, per-game averages, advanced metrics, and league ranks. Filter season leaders by team using the team dropdown.",
+      "Pick any player in the database for season totals, per-game averages, advanced metrics, and league ranks.",
   },
   {
     href: "/scouting",
-    label: "Head-To-Head Scouting",
+    label: "Player Comparison",
     linkColor: "#b8860b",
     backgroundColor: "#fff9e6",
     borderColor: "#f5d76e",
-    description:
-      "Head-to-head team matchups and side-by-side player comparisons. Search any teams or players across all competitions.",
+    description: "Compare one player in the database with another player side by side.",
   },
   {
     href: "/metric-definitions",
@@ -70,11 +68,9 @@ export default function Page() {
             🏀 Bounce PASS - Player Analytics Systems & Storage 🏀
           </h1>
           <p style={{ color: "#7f8c8d", margin: 0, fontSize: "1.1em" }}>
-            Sync NBL1 fixtures, explore dashboards, and manage your advanced box scores.
+            Upload box scores, calculate advanced stats, and save them to your database.
           </p>
         </header>
-
-        <SiteNav />
 
         <main
           style={{
@@ -84,13 +80,12 @@ export default function Page() {
             boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
           }}
         >
-          <Nbl1FixtureSync />
+          <UploadDual />
 
           <section style={{ marginTop: "32px", color: "#34495e", lineHeight: 1.7 }}>
             <h2 style={{ marginTop: 0, marginBottom: "16px", color: "#2c3e50" }}>How to Navigate</h2>
             <p style={{ margin: "0 0 20px 0", color: "#56616b" }}>
-              Use the <strong>Menu</strong> (top left) to move between pages. Filter by competition (men&apos;s / women&apos;s)
-              and NBL1 region on dashboard pages to narrow results.
+              Use the links along the top of the page to move between views. Saved uploads feed every dashboard.
             </p>
 
             <div style={{ display: "grid", gap: "20px" }}>
@@ -113,14 +108,6 @@ export default function Page() {
                 </div>
               ))}
             </div>
-
-            <p style={{ margin: "24px 0 0 0", fontSize: "14px", color: "#7f8c8d" }}>
-              Want to try the box score calculator without unlocking the full demo?{" "}
-              <Link href="/login" style={{ color: "#3498db" }}>
-                Open the password page
-              </Link>{" "}
-              — the calculator runs below the site password form (NBL1 and NBL.com.au URLs supported).
-            </p>
           </section>
         </main>
       </div>
