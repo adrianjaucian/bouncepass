@@ -25,13 +25,18 @@ type AuthPayload = {
 };
 
 async function backendAuth(path: string, body: Record<string, string>): Promise<AuthPayload & { ok: boolean; status: number }> {
-  const response = await fetch(`${getBackendUrl()}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify(body),
-  });
-  const data = (await response.json().catch(() => ({}))) as AuthPayload;
-  return { ...data, ok: response.ok, status: response.status };
+  try {
+    const response = await fetch(`${getBackendUrl()}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(20000),
+    });
+    const data = (await response.json().catch(() => ({}))) as AuthPayload;
+    return { ...data, ok: response.ok, status: response.status };
+  } catch {
+    return { ok: false, status: 503 };
+  }
 }
 
 function mintToken(userId: number, secret: string): string {
@@ -50,6 +55,7 @@ async function tokenBelongsToDemo(token: string): Promise<boolean> {
   try {
     const response = await fetch(`${getBackendUrl()}/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(8000),
     });
     if (!response.ok) return false;
     const data = (await response.json().catch(() => ({}))) as { email?: string };
@@ -74,7 +80,7 @@ export async function issueSiteAccessToken(password: string): Promise<string | n
 
   const secret = process.env.AUTH_SECRET || process.env.JWT_SECRET;
   if (!secret) return null;
-  for (let userId = 1; userId <= 32; userId += 1) {
+  for (let userId = 1; userId <= 8; userId += 1) {
     const token = mintToken(userId, secret);
     if (await tokenBelongsToDemo(token)) return token;
   }

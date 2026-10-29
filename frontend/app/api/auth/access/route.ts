@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { AUTH_COOKIE_NAME } from "../../../../lib/auth";
 import { isValidSitePassword, issueSiteAccessToken } from "../../../../lib/siteSession";
 
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+
 export async function POST(request: NextRequest) {
   let body: { password?: string };
   try {
