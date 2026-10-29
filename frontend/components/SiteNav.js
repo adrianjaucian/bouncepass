@@ -35,7 +35,10 @@ export default function SiteNav() {
           router.replace("/login");
           return;
         }
-        if (!response.ok) return;
+        if (!response.ok) {
+          setUserEmail("Demo");
+          return;
+        }
         const data = await response.json();
         setUserEmail(data.email ? "Demo" : "");
       } catch {

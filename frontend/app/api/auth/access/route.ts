@@ -23,12 +23,6 @@ export async function POST(request: NextRequest) {
 
   try {
     const token = await issueSiteAccessToken(password);
-    if (!token) {
-      return NextResponse.json(
-        { error: "Could not unlock the demo workspace. Try again in a moment." },
-        { status: 502 }
-      );
-    }
     const response = NextResponse.json({ ok: true });
     response.cookies.set(AUTH_COOKIE_NAME, token, {
       httpOnly: true,

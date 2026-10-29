@@ -21,6 +21,7 @@ function SitePasswordForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password }),
+        signal: AbortSignal.timeout(25000),
       });
 
       if (!response.ok) {
