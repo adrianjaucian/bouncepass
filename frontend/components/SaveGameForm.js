@@ -2,6 +2,7 @@ import { useState } from "react";
 import Link from "next/link";
 import api from "../lib/api";
 import { COLORS } from "../lib/theme";
+import { isUnavailableStatus, saveLocalGame } from "../lib/workspaceStore";
 import { useTeam } from "./TeamProvider";
 
 export default function SaveGameForm({ results, hasAwayTeam }) {
@@ -27,19 +28,31 @@ export default function SaveGameForm({ results, hasAwayTeam }) {
     setError("");
     setMessage("");
     setSavedGameId(null);
+    const payload = {
+      team_id: currentTeam.id,
+      game_date: gameDate,
+      opponent_name: opponentName.trim() || null,
+      results,
+    };
     try {
-      const res = await api.post("/games", {
-        team_id: currentTeam.id,
-        game_date: gameDate,
-        opponent_name: opponentName.trim() || null,
-        results,
-      });
+      const res = await api.post("/games", payload);
       setSavedGameId(res.data.id);
       setMessage(`Saved to ${currentTeam.name}.`);
       await reloadTeams();
     } catch (err) {
-      const serverMessage = err?.response?.data?.detail || err?.response?.data?.error || err?.message || "Could not save game.";
-      setError(typeof serverMessage === "string" ? serverMessage : JSON.stringify(serverMessage));
+      if (isUnavailableStatus(err?.response?.status) || !err?.response) {
+        try {
+          const local = saveLocalGame(payload);
+          setSavedGameId(local.id);
+          setMessage(`Saved to ${currentTeam.name}.`);
+          await reloadTeams();
+        } catch (localErr) {
+          setError(localErr.message || "Could not save game.");
+        }
+      } else {
+        const serverMessage = err?.response?.data?.detail || err?.response?.data?.error || err?.message || "Could not save game.";
+        setError(typeof serverMessage === "string" ? serverMessage : JSON.stringify(serverMessage));
+      }
     } finally {
       setSaving(false);
     }

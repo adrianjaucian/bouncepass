@@ -69,6 +69,15 @@ async function proxyRequest(request: NextRequest, pathParts: string[]) {
         backendResponse = await sendToBackend(backendUrl, request, backendToken, body);
       }
     }
+    if (backendResponse.status === 503) {
+      return NextResponse.json(
+        {
+          error: "Backend unavailable",
+          detail: "The stats API is suspended. Your team is being saved in this browser instead.",
+        },
+        { status: 503 },
+      );
+    }
     return proxyResponse(backendResponse, await backendResponse.arrayBuffer());
   } catch (error) {
     console.error("Backend proxy error:", backendUrl, error);

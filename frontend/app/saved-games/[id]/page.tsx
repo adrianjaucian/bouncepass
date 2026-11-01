@@ -8,6 +8,7 @@ import ExportResultsButton from "../../../components/ExportResultsButton";
 import GameResultsView from "../../../components/GameResultsView";
 import api from "../../../lib/api";
 import { formatSavedGameLabel } from "../../../lib/gameResultsUtils";
+import { getLocalGame, isUnavailableStatus } from "../../../lib/workspaceStore";
 
 type SavedGameDetail = {
   id: number;
@@ -39,6 +40,11 @@ export default function SavedGameDetailPage() {
         const res = await api.get(`/games/${gameId}`);
         setGame(res.data);
       } catch (err: any) {
+        const local = getLocalGame(gameId);
+        if (local && (isUnavailableStatus(err?.response?.status) || !err?.response || err?.response?.status === 404)) {
+          setGame(local);
+          return;
+        }
         setError(err?.response?.data?.detail || err?.response?.data?.error || err?.message || "Could not load game.");
       } finally {
         setLoading(false);

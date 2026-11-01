@@ -6,6 +6,7 @@ import ExportSavedGameButton from "../../components/ExportSavedGameButton";
 import { useTeam } from "../../components/TeamProvider";
 import api from "../../lib/api";
 import { formatSavedGameLabel } from "../../lib/gameResultsUtils";
+import { deleteLocalGame, isUnavailableStatus, listLocalGames } from "../../lib/workspaceStore";
 import { COLORS, pageHeader, pageInner, pageMain, pageShell, subtitleStyle, titleStyle } from "../../lib/theme";
 
 type SavedGameSummary = {
@@ -52,6 +53,12 @@ export default function SavedGamesPage() {
         setTotal(res.data?.total ?? nextGames.length);
         setGames((current) => (append ? [...current, ...nextGames] : nextGames));
       } catch (err: any) {
+        if (isUnavailableStatus(err?.response?.status) || !err?.response) {
+          const local = listLocalGames(currentTeam.id);
+          setGames(local.games);
+          setTotal(local.total);
+          return;
+        }
         const message =
           err?.response?.data?.detail ||
           err?.response?.data?.error ||
@@ -78,6 +85,12 @@ export default function SavedGamesPage() {
       setGames((current) => current.filter((game) => game.id !== id));
       setTotal((current) => Math.max(0, current - 1));
     } catch (err: any) {
+      if (isUnavailableStatus(err?.response?.status) || !err?.response) {
+        deleteLocalGame(id);
+        setGames((current) => current.filter((game) => game.id !== id));
+        setTotal((current) => Math.max(0, current - 1));
+        return;
+      }
       setError(err?.response?.data?.error || err?.message || "Could not delete game.");
     }
   };

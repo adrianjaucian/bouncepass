@@ -1,6 +1,7 @@
 import { useState } from "react";
 import api from "../lib/api";
 import { COLORS } from "../lib/theme";
+import { isUnavailableStatus, updateLocalGame } from "../lib/workspaceStore";
 
 export default function EditGameForm({ game, onUpdated, onCancel }) {
   const [gameDate, setGameDate] = useState(game.game_date || "");
@@ -24,6 +25,10 @@ export default function EditGameForm({ game, onUpdated, onCancel }) {
       });
       onUpdated?.(res.data);
     } catch (err) {
+      if (isUnavailableStatus(err?.response?.status) || !err?.response) {
+        onUpdated?.(updateLocalGame(game.id, { game_date: gameDate, opponent_name: opponentName.trim() || null }));
+        return;
+      }
       const serverMessage =
         err?.response?.data?.error ||
         err?.response?.data?.detail ||

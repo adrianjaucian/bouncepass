@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useTeam } from "../../components/TeamProvider";
 import api from "../../lib/api";
+import { buildLocalTeamAnalytics, isUnavailableStatus } from "../../lib/workspaceStore";
 import { COLORS, pageHeader, pageInner, pageMain, pageShell, subtitleStyle, titleStyle } from "../../lib/theme";
 
 type DashboardPlayer = {
@@ -87,6 +88,11 @@ export default function TeamDashboardPage() {
         const res = await api.get(`/teams/${currentTeam.id}/dashboard`);
         setDashboard(res.data);
       } catch (err: any) {
+        const local = buildLocalTeamAnalytics(currentTeam.id);
+        if (local && (isUnavailableStatus(err?.response?.status) || !err?.response || err?.response?.status === 404)) {
+          setDashboard(local);
+          return;
+        }
         const message =
           err?.response?.data?.detail ||
           err?.response?.data?.error ||

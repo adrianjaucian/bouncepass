@@ -6,6 +6,7 @@ import { Suspense, useEffect, useState } from "react";
 import PlayerDashboardDetail from "../../components/PlayerDashboardDetail";
 import { useTeam } from "../../components/TeamProvider";
 import api from "../../lib/api";
+import { buildLocalPlayerAnalytics, isUnavailableStatus, listLocalPlayers } from "../../lib/workspaceStore";
 import { COLORS, pageHeader, pageInner, pageMain, pageShell, subtitleStyle, titleStyle } from "../../lib/theme";
 
 type TeamPlayer = {
@@ -52,8 +53,8 @@ function PlayerDashboardContent() {
       try {
         const res = await api.get(`/teams/${currentTeam.id}/players`);
         setPlayers(res.data?.players || []);
-      } catch {
-        setPlayers([]);
+      } catch (err: any) {
+        setPlayers(isUnavailableStatus(err?.response?.status) || !err?.response ? listLocalPlayers(currentTeam.id) : []);
       }
     };
     loadPlayers();
@@ -74,6 +75,11 @@ function PlayerDashboardContent() {
         });
         setDashboard(res.data);
       } catch (err: any) {
+        const local = buildLocalPlayerAnalytics(currentTeam.id, selectedPlayer.trim());
+        if (local && (isUnavailableStatus(err?.response?.status) || !err?.response || err?.response?.status === 404)) {
+          setDashboard(local);
+          return;
+        }
         const message =
           err?.response?.data?.detail ||
           err?.response?.data?.error ||
