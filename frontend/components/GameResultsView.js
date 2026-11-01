@@ -4,16 +4,70 @@ import {
   formatMp,
   withTeamRole,
 } from "../lib/gameResultsUtils";
+import { COLORS } from "../lib/theme";
 import { getPlayerNameFromRow } from "../lib/playerLinks";
 import PlayerLink from "./PlayerLink";
+
+const REGULAR_COLUMNS = [
+  { key: "MP", label: "MP" },
+  { key: "FG", label: "FG" },
+  { key: "FGA", label: "FGA" },
+  { key: "FG%", label: "FG%" },
+  { key: "3P", label: "3P" },
+  { key: "3PA", label: "3PA" },
+  { key: "3P%", label: "3P%" },
+  { key: "FT", label: "FT" },
+  { key: "FTA", label: "FTA" },
+  { key: "FT%", label: "FT%" },
+  { key: "ORB", label: "ORB" },
+  { key: "DRB", label: "DRB" },
+  { key: "TRB", label: "TRB" },
+  { key: "AST", label: "AST" },
+  { key: "STL", label: "STL" },
+  { key: "BLK", label: "BLK" },
+  { key: "TOV", label: "TOV" },
+  { key: "PTS", label: "PTS" },
+];
+
+const ADVANCED_COLUMNS = [
+  { key: "TS%", label: "TS%" },
+  { key: "eFG%", label: "eFG%" },
+  { key: "3PAr", label: "3PAr" },
+  { key: "FTr", label: "FTr" },
+  { key: "ORB%", label: "ORB%" },
+  { key: "DRB%", label: "DRB%" },
+  { key: "TRB%", label: "TRB%" },
+  { key: "AST%", label: "AST%" },
+  { key: "STL%", label: "STL%" },
+  { key: "BLK%", label: "BLK%" },
+  { key: "TOV%", label: "TOV%" },
+  { key: "USG%", label: "USG%" },
+  { key: "ORtg", label: "ORtg" },
+  { key: "DRtg", label: "DRtg" },
+  { key: "BPM", label: "BPM" },
+];
 
 const STICKY_NAME_COLUMN = {
   minWidth: "140px",
   maxWidth: "200px",
   position: "sticky",
   left: 0,
-  boxShadow: "2px 0 4px rgba(0, 0, 0, 0.08)",
+  boxShadow: "2px 0 4px rgba(27, 40, 56, 0.08)",
 };
+
+function formatCell(player, key) {
+  if (key === "MP") return formatMp(player.MP || player.MP_mins || player.mp || "0:00");
+  if (["FG%", "3P%", "FT%", "TS%", "eFG%", "3PAr", "FTr"].includes(key)) {
+    return `${((player[key] || 0) * 100).toFixed(1)}%`;
+  }
+  if (["ORB%", "DRB%", "TRB%", "AST%", "STL%", "BLK%", "TOV%", "USG%"].includes(key)) {
+    return `${(player[key] || 0).toFixed(1)}%`;
+  }
+  if (["ORtg", "DRtg", "BPM"].includes(key)) {
+    return Number(player[key] || 0).toFixed(1);
+  }
+  return player[key] || 0;
+}
 
 function ResultsTable({ rows }) {
   return (
@@ -24,13 +78,13 @@ function ResultsTable({ rows }) {
           borderSpacing: 0,
           width: "100%",
           fontSize: "12px",
-          border: "1px solid #ddd",
+          border: `1px solid ${COLORS.greyBorder}`,
           borderRadius: "5px",
           minWidth: "1400px",
         }}
       >
         <thead>
-          <tr style={{ backgroundColor: "#3498db", color: "white" }}>
+          <tr>
             <th
               style={{
                 ...STICKY_NAME_COLUMN,
@@ -38,98 +92,90 @@ function ResultsTable({ rows }) {
                 padding: "8px 4px",
                 textAlign: "left",
                 fontWeight: "bold",
-                backgroundColor: "#3498db",
+                backgroundColor: COLORS.greyHeader,
+                color: "#fff",
               }}
             >
               Player
             </th>
-            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'bold' }}>MP</th>
-            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'bold' }}>FG</th>
-            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'bold' }}>FGA</th>
-            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'bold' }}>FG%</th>
-            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'bold' }}>3P</th>
-            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'bold' }}>3PA</th>
-            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'bold' }}>3P%</th>
-            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'bold' }}>FT</th>
-            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'bold' }}>FTA</th>
-            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'bold' }}>FT%</th>
-            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'bold' }}>ORB</th>
-            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'bold' }}>DRB</th>
-            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'bold' }}>TRB</th>
-            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'bold' }}>AST</th>
-            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'bold' }}>STL</th>
-            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'bold' }}>BLK</th>
-            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'bold' }}>TOV</th>
-            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'bold' }}>PTS</th>
-            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'bold', backgroundColor: '#27ae60' }}>TS%</th>
-            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'bold', backgroundColor: '#27ae60' }}>eFG%</th>
-            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'bold', backgroundColor: '#27ae60' }}>3PAr</th>
-            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'bold', backgroundColor: '#27ae60' }}>FTr</th>
-            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'bold', backgroundColor: '#27ae60' }}>ORB%</th>
-            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'bold', backgroundColor: '#27ae60' }}>DRB%</th>
-            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'bold', backgroundColor: '#27ae60' }}>TRB%</th>
-            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'bold', backgroundColor: '#27ae60' }}>AST%</th>
-            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'bold', backgroundColor: '#27ae60' }}>STL%</th>
-            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'bold', backgroundColor: '#27ae60' }}>BLK%</th>
-            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'bold', backgroundColor: '#27ae60' }}>TOV%</th>
-            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'bold', backgroundColor: '#27ae60' }}>USG%</th>
-            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'bold', backgroundColor: '#27ae60' }}>ORtg</th>
-            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'bold', backgroundColor: '#27ae60' }}>DRtg</th>
-            <th style={{ padding: '8px 4px', textAlign: 'center', fontWeight: 'bold', backgroundColor: '#27ae60' }}>BPM</th>
+            {REGULAR_COLUMNS.map((col) => (
+              <th
+                key={col.key}
+                style={{
+                  padding: "8px 4px",
+                  textAlign: "center",
+                  fontWeight: "bold",
+                  backgroundColor: COLORS.greyHeader,
+                  color: "#fff",
+                }}
+              >
+                {col.label}
+              </th>
+            ))}
+            {ADVANCED_COLUMNS.map((col) => (
+              <th
+                key={col.key}
+                style={{
+                  padding: "8px 4px",
+                  textAlign: "center",
+                  fontWeight: "bold",
+                  backgroundColor: COLORS.gold,
+                  color: COLORS.navy,
+                }}
+              >
+                {col.label}
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody>
           {rows.map((player, i) => {
             const playerName = getPlayerNameFromRow(player, i);
-            const rowBackground = i % 2 === 0 ? "#fff" : "#f8f9fa";
+            const regularBg = i % 2 === 0 ? COLORS.greyRow : COLORS.greyAlt;
+            const advancedBg = i % 2 === 0 ? COLORS.goldSoft : COLORS.goldMuted;
             return (
-            <tr key={i} style={{ backgroundColor: rowBackground, borderBottom: "1px solid #eee" }}>
-              <td
-                style={{
-                  ...STICKY_NAME_COLUMN,
-                  zIndex: 1,
-                  padding: "8px 4px",
-                  fontWeight: "500",
-                  color: "#000",
-                  backgroundColor: rowBackground,
-                }}
-              >
-                <PlayerLink name={playerName} />
-              </td>
-              <td style={{ padding: '8px 4px', textAlign: 'center', color: '#000' }}>{formatMp(player.MP || player.MP_mins || player.mp || '0:00')}</td>
-              <td style={{ padding: '8px 4px', textAlign: 'center', color: '#000' }}>{player.FG || 0}</td>
-              <td style={{ padding: '8px 4px', textAlign: 'center', color: '#000' }}>{player.FGA || 0}</td>
-              <td style={{ padding: '8px 4px', textAlign: 'center', color: '#000' }}>{((player['FG%'] || 0) * 100).toFixed(1)}%</td>
-              <td style={{ padding: '8px 4px', textAlign: 'center', color: '#000' }}>{player['3P'] || 0}</td>
-              <td style={{ padding: '8px 4px', textAlign: 'center', color: '#000' }}>{player['3PA'] || 0}</td>
-              <td style={{ padding: '8px 4px', textAlign: 'center', color: '#000' }}>{((player['3P%'] || 0) * 100).toFixed(1)}%</td>
-              <td style={{ padding: '8px 4px', textAlign: 'center', color: '#000' }}>{player.FT || 0}</td>
-              <td style={{ padding: '8px 4px', textAlign: 'center', color: '#000' }}>{player.FTA || 0}</td>
-              <td style={{ padding: '8px 4px', textAlign: 'center', color: '#000' }}>{((player['FT%'] || 0) * 100).toFixed(1)}%</td>
-              <td style={{ padding: '8px 4px', textAlign: 'center', color: '#000' }}>{player.ORB || 0}</td>
-              <td style={{ padding: '8px 4px', textAlign: 'center', color: '#000' }}>{player.DRB || 0}</td>
-              <td style={{ padding: '8px 4px', textAlign: 'center', color: '#000' }}>{player.TRB || 0}</td>
-              <td style={{ padding: '8px 4px', textAlign: 'center', color: '#000' }}>{player.AST || 0}</td>
-              <td style={{ padding: '8px 4px', textAlign: 'center', color: '#000' }}>{player.STL || 0}</td>
-              <td style={{ padding: '8px 4px', textAlign: 'center', color: '#000' }}>{player.BLK || 0}</td>
-              <td style={{ padding: '8px 4px', textAlign: 'center', color: '#000' }}>{player.TOV || 0}</td>
-              <td style={{ padding: '8px 4px', textAlign: 'center', fontWeight: '600', color: '#000' }}>{player.PTS || 0}</td>
-              <td style={{ padding: '8px 4px', textAlign: 'center', fontWeight: '500', color: '#000', backgroundColor: '#d5f4e6' }}>{((player['TS%'] || 0) * 100).toFixed(1)}%</td>
-              <td style={{ padding: '8px 4px', textAlign: 'center', fontWeight: '500', color: '#000', backgroundColor: '#d5f4e6' }}>{((player['eFG%'] || 0) * 100).toFixed(1)}%</td>
-              <td style={{ padding: '8px 4px', textAlign: 'center', fontWeight: '500', color: '#000', backgroundColor: '#d5f4e6' }}>{((player['3PAr'] || 0) * 100).toFixed(1)}%</td>
-              <td style={{ padding: '8px 4px', textAlign: 'center', fontWeight: '500', color: '#000', backgroundColor: '#d5f4e6' }}>{((player['FTr'] || 0) * 100).toFixed(1)}%</td>
-              <td style={{ padding: '8px 4px', textAlign: 'center', fontWeight: '500', color: '#000', backgroundColor: '#d5f4e6' }}>{(player['ORB%'] || 0).toFixed(1)}%</td>
-              <td style={{ padding: '8px 4px', textAlign: 'center', fontWeight: '500', color: '#000', backgroundColor: '#d5f4e6' }}>{(player['DRB%'] || 0).toFixed(1)}%</td>
-              <td style={{ padding: '8px 4px', textAlign: 'center', fontWeight: '500', color: '#000', backgroundColor: '#d5f4e6' }}>{(player['TRB%'] || 0).toFixed(1)}%</td>
-              <td style={{ padding: '8px 4px', textAlign: 'center', fontWeight: '500', color: '#000', backgroundColor: '#d5f4e6' }}>{(player['AST%'] || 0).toFixed(1)}%</td>
-              <td style={{ padding: '8px 4px', textAlign: 'center', fontWeight: '500', color: '#000', backgroundColor: '#d5f4e6' }}>{(player['STL%'] || 0).toFixed(1)}%</td>
-              <td style={{ padding: '8px 4px', textAlign: 'center', fontWeight: '500', color: '#000', backgroundColor: '#d5f4e6' }}>{(player['BLK%'] || 0).toFixed(1)}%</td>
-              <td style={{ padding: '8px 4px', textAlign: 'center', fontWeight: '500', color: '#000', backgroundColor: '#d5f4e6' }}>{(player['TOV%'] || 0).toFixed(1)}%</td>
-              <td style={{ padding: '8px 4px', textAlign: 'center', fontWeight: '500', color: '#000', backgroundColor: '#d5f4e6' }}>{((player['USG%'] || 0) * 1).toFixed(1)}%</td>
-              <td style={{ padding: '8px 4px', textAlign: 'center', fontWeight: '500', color: '#000', backgroundColor: '#d5f4e6' }}>{Number(player['ORtg'] || 0).toFixed(1)}</td>
-              <td style={{ padding: '8px 4px', textAlign: 'center', fontWeight: '500', color: '#000', backgroundColor: '#d5f4e6' }}>{Number(player['DRtg'] || 0).toFixed(1)}</td>
-              <td style={{ padding: '8px 4px', textAlign: 'center', fontWeight: '500', color: '#000', backgroundColor: '#d5f4e6' }}>{Number(player['BPM'] || 0).toFixed(1)}</td>
-            </tr>
+              <tr key={i}>
+                <td
+                  style={{
+                    ...STICKY_NAME_COLUMN,
+                    zIndex: 1,
+                    padding: "8px 4px",
+                    fontWeight: 500,
+                    color: COLORS.text,
+                    backgroundColor: regularBg,
+                  }}
+                >
+                  <PlayerLink name={playerName} />
+                </td>
+                {REGULAR_COLUMNS.map((col) => (
+                  <td
+                    key={col.key}
+                    style={{
+                      padding: "8px 4px",
+                      textAlign: "center",
+                      color: COLORS.text,
+                      backgroundColor: regularBg,
+                      fontWeight: col.key === "PTS" ? 700 : 400,
+                    }}
+                  >
+                    {formatCell(player, col.key)}
+                  </td>
+                ))}
+                {ADVANCED_COLUMNS.map((col) => (
+                  <td
+                    key={col.key}
+                    style={{
+                      padding: "8px 4px",
+                      textAlign: "center",
+                      color: COLORS.navy,
+                      backgroundColor: advancedBg,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {formatCell(player, col.key)}
+                  </td>
+                ))}
+              </tr>
             );
           })}
         </tbody>
@@ -173,7 +219,7 @@ function TeamSummary({ totals, title }) {
 
   return (
     <div style={{ marginTop: "12px", marginBottom: "20px" }}>
-      <h4 style={{ margin: "8px 0", color: "#000" }}>{title} — Team Totals</h4>
+      <h4 style={{ margin: "8px 0", color: COLORS.navy }}>{title} — Team Totals</h4>
       <div style={{ overflowX: "auto", maxWidth: "100%" }}>
         <table
           style={{
@@ -182,13 +228,13 @@ function TeamSummary({ totals, title }) {
             width: "100%",
             minWidth: "720px",
             fontSize: "12px",
-            border: "1px solid #ddd",
+            border: `1px solid ${COLORS.greyBorder}`,
             borderRadius: "5px",
-            color: "#000",
+            color: COLORS.text,
           }}
         >
           <thead>
-            <tr style={{ backgroundColor: "#f1f6f9", color: "#000" }}>
+            <tr style={{ backgroundColor: COLORS.greyHeader, color: "#fff" }}>
               {columns.map((col) => (
                 <th key={col.key} style={{ ...cellStyle, fontWeight: "bold" }}>
                   {col.key}
@@ -197,7 +243,7 @@ function TeamSummary({ totals, title }) {
             </tr>
           </thead>
           <tbody>
-            <tr style={{ backgroundColor: "#fff" }}>
+            <tr style={{ backgroundColor: COLORS.greyRow }}>
               {columns.map((col) => (
                 <td key={col.key} style={cellStyle}>
                   {col.value}
@@ -229,7 +275,7 @@ export default function GameResultsView({
         <p
           style={{
             margin: "0 0 16px 0",
-            color: "#56616b",
+            color: COLORS.muted,
             fontSize: "14px",
             fontWeight: 600,
           }}

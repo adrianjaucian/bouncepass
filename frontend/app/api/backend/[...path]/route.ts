@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { AUTH_COOKIE_NAME, getBackendUrl, isDemoSession } from "../../../../lib/auth";
+import { AUTH_COOKIE_NAME, getBackendUrl } from "../../../../lib/auth";
+import { isDemoSession } from "../../../../lib/authServer";
 
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";

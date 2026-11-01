@@ -8,7 +8,7 @@ export default function PlayerLink({ name, style = {} }) {
     <Link
       href={getPlayerDashboardHref(name)}
       style={{
-        color: "#3498db",
+        color: "#1b2838",
         textDecoration: "none",
         fontWeight: 500,
         ...style,

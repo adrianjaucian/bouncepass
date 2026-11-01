@@ -1,87 +1,44 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import api from "../lib/api";
+import { COLORS } from "../lib/theme";
+import { useTeam } from "./TeamProvider";
 
-export default function SaveGameForm({
-  results,
-  hasAwayTeam,
-  initialGameDate = "",
-  initialHomeTeamName = "",
-  initialAwayTeamName = "",
-  initialFixtureId = "",
-  initialSourceUrl = "",
-  initialProvider = "",
-  requireAuth = false,
-}) {
-  const router = useRouter();
+export default function SaveGameForm({ results, hasAwayTeam }) {
+  const { currentTeam, reloadTeams } = useTeam();
   const today = new Date().toISOString().slice(0, 10);
-  const [gameDate, setGameDate] = useState(initialGameDate || today);
-  const [homeTeamName, setHomeTeamName] = useState(initialHomeTeamName || "");
-  const [awayTeamName, setAwayTeamName] = useState(initialAwayTeamName || "");
-  const [savedGameId, setSavedGameId] = useState(null);
-
-  useEffect(() => {
-    if (initialGameDate) setGameDate(initialGameDate);
-    if (initialHomeTeamName) setHomeTeamName(initialHomeTeamName);
-    if (initialAwayTeamName) setAwayTeamName(initialAwayTeamName);
-  }, [initialGameDate, initialHomeTeamName, initialAwayTeamName]);
+  const [gameDate, setGameDate] = useState(today);
+  const [opponentName, setOpponentName] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [savedGameId, setSavedGameId] = useState(null);
 
   const saveGame = async () => {
-    if (!results) return;
-
-    if (requireAuth) {
-      try {
-        const authRes = await fetch("/api/auth/me");
-        if (!authRes.ok) {
-          setError("Unlock the site with the password to save this game.");
-          router.push("/login?from=/");
-          return;
-        }
-      } catch {
-        setError("Unlock the site with the password to save this game.");
-        router.push("/login?from=/");
-        return;
-      }
-    }
-
-    if (!gameDate.trim() || !homeTeamName.trim()) {
-      setError("Date and home team name are required.");
+    if (!results || !currentTeam) {
+      setError("Create or select a team before saving.");
       return;
     }
-    if (hasAwayTeam && !awayTeamName.trim()) {
-      setError("Away team name is required when away stats are included.");
+    if (!gameDate.trim()) {
+      setError("Game date is required.");
       return;
     }
-
     setSaving(true);
     setError("");
     setMessage("");
     setSavedGameId(null);
-
     try {
-      const payload = {
+      const res = await api.post("/games", {
+        team_id: currentTeam.id,
         game_date: gameDate,
-        home_team_name: homeTeamName.trim(),
-        away_team_name: hasAwayTeam ? awayTeamName.trim() : null,
+        opponent_name: opponentName.trim() || null,
         results,
-      };
-      if (initialFixtureId) payload.fixture_id = initialFixtureId;
-      if (initialSourceUrl) payload.source_url = initialSourceUrl;
-      if (initialProvider) payload.provider = initialProvider;
-
-      const res = await api.post("/games", payload);
+      });
       setSavedGameId(res.data.id);
-      setMessage(`Game saved (ID ${res.data.id}).`);
+      setMessage(`Saved to ${currentTeam.name}.`);
+      await reloadTeams();
     } catch (err) {
-      const serverMessage =
-        err?.response?.data?.error ||
-        err?.response?.data?.detail ||
-        err?.message ||
-        "Could not save game.";
+      const serverMessage = err?.response?.data?.detail || err?.response?.data?.error || err?.message || "Could not save game.";
       setError(typeof serverMessage === "string" ? serverMessage : JSON.stringify(serverMessage));
     } finally {
       setSaving(false);
@@ -89,74 +46,53 @@ export default function SaveGameForm({
   };
 
   return (
-    <div style={{ marginTop: '24px', padding: '20px', backgroundColor: '#f4f8fb', borderRadius: '8px', border: '1px solid #d6e4f0' }}>
-      <h3 style={{ margin: '0 0 16px 0', color: '#2c3e50' }}>
-        {requireAuth ? "Bounce — Save to Your Account" : "Save to Advanced Box Scores"}
+    <div style={{ marginTop: "24px", padding: "20px", backgroundColor: COLORS.goldSoft, borderRadius: "8px", border: `1px solid ${COLORS.gold}` }}>
+      <h3 style={{ margin: "0 0 16px 0", color: COLORS.navy }}>
+        Save to {currentTeam?.name || "this team"}
       </h3>
-      {requireAuth && (
-        <p style={{ margin: '0 0 12px 0', color: '#56616b', fontSize: '13px' }}>
-          Unlock the site first to store this box score in your database.
-        </p>
-      )}
-      <div style={{ display: 'grid', gap: '12px', maxWidth: '520px' }}>
-        <label style={{ display: 'grid', gap: '6px', color: '#000', fontSize: '14px' }}>
+      <p style={{ margin: "0 0 12px 0", color: COLORS.muted, fontSize: "13px" }}>
+        Players from the home CSV are stored on this team so their metrics can be tracked over time.
+        {hasAwayTeam ? " The away CSV is kept as the opponent box score." : ""}
+      </p>
+      <div style={{ display: "grid", gap: "12px", maxWidth: "520px" }}>
+        <label style={{ display: "grid", gap: "6px", color: COLORS.navy, fontSize: "14px" }}>
           Game Date
           <input
             type="date"
             value={gameDate}
             onChange={(e) => setGameDate(e.target.value)}
-            style={{ padding: '10px 12px', borderRadius: '6px', border: '1px solid #d0d7de', color: '#000' }}
+            style={{ padding: "10px 12px", borderRadius: "6px", border: `1px solid ${COLORS.greyBorder}`, color: COLORS.navy }}
           />
         </label>
-        <label style={{ display: 'grid', gap: '6px', color: '#000', fontSize: '14px' }}>
-          Team Name (Home)
+        <label style={{ display: "grid", gap: "6px", color: COLORS.navy, fontSize: "14px" }}>
+          Opponent (optional)
           <input
             type="text"
-            value={homeTeamName}
-            onChange={(e) => setHomeTeamName(e.target.value)}
-            placeholder="e.g. Spiders"
-            style={{ padding: '10px 12px', borderRadius: '6px', border: '1px solid #d0d7de', color: '#000' }}
+            value={opponentName}
+            onChange={(e) => setOpponentName(e.target.value)}
+            placeholder="e.g. City Hawks"
+            style={{ padding: "10px 12px", borderRadius: "6px", border: `1px solid ${COLORS.greyBorder}`, color: COLORS.navy }}
           />
         </label>
-        {hasAwayTeam && (
-          <label style={{ display: 'grid', gap: '6px', color: '#000', fontSize: '14px' }}>
-            Team Name (Away)
-            <input
-              type="text"
-              value={awayTeamName}
-              onChange={(e) => setAwayTeamName(e.target.value)}
-              placeholder="e.g. Sixers"
-              style={{ padding: '10px 12px', borderRadius: '6px', border: '1px solid #d0d7de', color: '#000' }}
-            />
-          </label>
-        )}
         <button
           onClick={saveGame}
-          disabled={saving}
-          style={{
-            padding: '12px 20px',
-            backgroundColor: saving ? '#bdc3c7' : '#9b59b6',
-            color: 'white',
-            border: 'none',
-            borderRadius: '6px',
-            cursor: saving ? 'not-allowed' : 'pointer',
-            fontWeight: 'bold',
-            width: 'fit-content',
-          }}
+          disabled={saving || !currentTeam}
+          className="upload-calculate"
+          style={{ width: "fit-content" }}
         >
-          {saving ? 'Saving...' : requireAuth ? 'Bounce' : 'Save to Database'}
+          {saving ? "Saving..." : "Save box score"}
         </button>
       </div>
       {message && (
-        <div style={{ marginTop: '12px', color: '#1e7e34', backgroundColor: '#e8f8ee', padding: '12px', borderRadius: '6px', border: '1px solid #b7e4c7' }}>
+        <div style={{ marginTop: "12px", color: "#1e7e34", backgroundColor: "#e8f8ee", padding: "12px", borderRadius: "6px" }}>
           {message}{" "}
           <Link href={savedGameId ? `/saved-games/${savedGameId}` : "/saved-games"} style={{ color: "#1e7e34", fontWeight: 700 }}>
-            View on Advanced Box Scores
+            View box scores
           </Link>
         </div>
       )}
       {error && (
-        <div style={{ marginTop: '12px', color: '#c0392b', backgroundColor: '#fdecea', padding: '12px', borderRadius: '6px', border: '1px solid #f5c6cb' }}>
+        <div style={{ marginTop: "12px", color: COLORS.danger, backgroundColor: COLORS.dangerBg, padding: "12px", borderRadius: "6px" }}>
           {error}
         </div>
       )}

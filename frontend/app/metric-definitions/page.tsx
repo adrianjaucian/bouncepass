@@ -25,14 +25,14 @@ const labelStyle = {
 };
 
 const jumpLinkStyle = {
-  color: "#3498db",
+  color: "#1b2838",
   textDecoration: "none",
   fontSize: "14px",
 };
 
 export default function MetricDefinitionsPage() {
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#f8f9fa", fontFamily: "Arial, sans-serif" }}>
+    <div style={{ minHeight: "100vh", backgroundColor: "#f7f4ea", fontFamily: "Arial, sans-serif" }}>
       <div style={{ maxWidth: "900px", margin: "0 auto", padding: "40px 20px" }}>
         <header
           style={{
@@ -44,8 +44,8 @@ export default function MetricDefinitionsPage() {
             boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
           }}
         >
-          <h1 style={{ color: "#2c3e50", margin: "0 0 10px 0", fontSize: "2.2em" }}>Metric Definitions</h1>
-          <p style={{ color: "#7f8c8d", margin: 0, lineHeight: 1.5 }}>
+          <h1 style={{ color: "#1b2838", margin: "0 0 10px 0", fontSize: "2.2em" }}>Metric Definitions</h1>
+          <p style={{ color: "#5d6d7e", margin: 0, lineHeight: 1.5 }}>
             Reference guide for statistics shown on the Team Metrics page and in uploaded box score results.
             All minute-scaled rates use <strong>40-minute FIBA</strong> game length.
           </p>
@@ -68,8 +68,8 @@ export default function MetricDefinitionsPage() {
               border: "1px solid #d6e4f0",
             }}
           >
-            <h2 style={{ margin: "0 0 12px 0", color: "#2c3e50", fontSize: "1.1em" }}>On this page</h2>
-            <ul style={{ margin: 0, paddingLeft: "20px", color: "#2c3e50", lineHeight: 1.8 }}>
+            <h2 style={{ margin: "0 0 12px 0", color: "#1b2838", fontSize: "1.1em" }}>On this page</h2>
+            <ul style={{ margin: 0, paddingLeft: "20px", color: "#1b2838", lineHeight: 1.8 }}>
               {METRIC_SECTIONS.map((section) => (
                 <li key={section.id}>
                   <Link href={`#${section.id}`} style={jumpLinkStyle}>
@@ -82,12 +82,12 @@ export default function MetricDefinitionsPage() {
 
           {METRIC_SECTIONS.map((section) => (
             <section key={section.id} id={section.id} style={sectionStyle}>
-              <h2 style={{ color: "#2c3e50", margin: "0 0 8px 0", fontSize: "1.5em" }}>{section.title}</h2>
+              <h2 style={{ color: "#1b2838", margin: "0 0 8px 0", fontSize: "1.5em" }}>{section.title}</h2>
               <p style={{ color: "#56616b", margin: "0 0 20px 0", lineHeight: 1.6 }}>{section.description}</p>
 
               {section.metrics.map((metric) => (
                 <article key={metric.id} id={metric.id} style={cardStyle}>
-                  <h3 style={{ color: "#2c3e50", margin: "0 0 12px 0", fontSize: "1.15em" }}>{metric.name}</h3>
+                  <h3 style={{ color: "#1b2838", margin: "0 0 12px 0", fontSize: "1.15em" }}>{metric.name}</h3>
 
                   <div style={{ marginBottom: "14px" }}>
                     <div style={labelStyle}>Formula</div>
@@ -120,13 +120,13 @@ export default function MetricDefinitionsPage() {
             </section>
           ))}
 
-          <p style={{ color: "#7f8c8d", fontSize: "14px", margin: 0, lineHeight: 1.6 }}>
+          <p style={{ color: "#5d6d7e", fontSize: "14px", margin: 0, lineHeight: 1.6 }}>
             Return to the{" "}
-            <Link href="/team-dashboard" style={{ color: "#3498db" }}>
+            <Link href="/team-dashboard" style={{ color: "#1b2838" }}>
               Team Metrics
             </Link>{" "}
             or{" "}
-            <Link href="/" style={{ color: "#3498db" }}>
+            <Link href="/" style={{ color: "#1b2838" }}>
               upload a box score
             </Link>{" "}
             to see these metrics in context.

@@ -1,28 +1,14 @@
-import io
 import json
 import logging
 import os
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Optional
 
-import pandas as pd
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from boxscore_normalize import (
-    clean_dataframe,
-    detect_header_row,
-    get_player_name,
-    is_totals_row_name,
-    normalize_column_name,
-    validate_required_columns,
-)
-from boxscore_url_scraper import UrlScrapeError, scrape_game_from_url
-from database import get_db, init_db
-from deps import get_current_user
-from models import SavedGame, User
 from auth_utils import (
     create_access_token,
     hash_password,
@@ -32,48 +18,39 @@ from auth_utils import (
     site_password,
     verify_password,
 )
+from database import get_db, init_db
+from deps import get_current_user
+from game_scores import scores_from_results
+from models import SavedGame, Team, TeamPlayer, User
 from schemas import (
     AccessRequest,
     AuthResponse,
-    BoxScoreUrlMeta,
-    BoxScoreUrlRequest,
-    BoxScoreUrlResponse,
     GameDetail,
-    GameImportBatchRequest,
-    GameImportBatchResponse,
-    GameDedupeResponse,
     GameListResponse,
     GameSaveRequest,
     GameSummary,
     GameUpdateRequest,
     LoginRequest,
-    Nbl1SyncRequest,
-    Nbl1SyncResponse,
-    Nbl1SyncStartResponse,
-    Nbl1SyncStatusResponse,
     PlayerDashboardResponse,
-    PlayerLeagueLeadersResponse,
     PlayerListResponse,
+    PlayerSummary,
     RegisterRequest,
+    TeamCreateRequest,
     TeamDashboardResponse,
-    TeamLeagueLeadersResponse,
     TeamListResponse,
+    TeamSummary,
     UserResponse,
 )
-from game_dedup import dedupe_user_saved_games, find_game_by_identity, upgrade_saved_game_from_sync
-from game_scores import scores_from_results
-from gender_utils import collect_team_options, filter_games_by_gender, normalize_gender
-from region_utils import filter_games_by_region, normalize_region
-from nbl1_sync_job import DEMO_SYNC_LIMIT, get_sync_status, start_sync_job
-from player_dashboard import build_league_leader_players, build_player_dashboard, collect_player_names
-from stats_engine import generate_advanced_stats
-from team_dashboard import build_team_dashboard, build_team_league_leaders
-from perf_utils import timed_step
+from team_analytics import (
+    build_player_analytics,
+    build_team_analytics,
+    collect_team_players_from_results,
+    normalize_name,
+)
 
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("bouncepass.perf")
 
 app = FastAPI()
 
@@ -92,7 +69,7 @@ def health():
     return payload
 
 
-DEFAULT_ORIGINS = "https://bouncepass.net,https://www.bouncepass.net,http://localhost:3000"
+DEFAULT_ORIGINS = "https://bouncepass.net,https://www.bouncepass.net,http://localhost:3000,http://localhost:3001"
 ALLOWED_ORIGINS = [
     origin.strip()
     for origin in os.getenv("ALLOWED_ORIGINS", DEFAULT_ORIGINS).split(",")
@@ -128,6 +105,55 @@ def _get_or_create_site_user(db: Session) -> User:
     return user
 
 
+def _owned_team(db: Session, current_user: User, team_id: int) -> Team:
+    team = db.query(Team).filter(Team.id == team_id, Team.user_id == current_user.id).first()
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found")
+    return team
+
+
+def _upsert_players(db: Session, team: Team, results: dict) -> None:
+    existing = {normalize_name(player.name): player for player in team.players}
+    for name in collect_team_players_from_results(results):
+        key = normalize_name(name)
+        if key in existing:
+            continue
+        db.add(TeamPlayer(team_id=team.id, name=name))
+        existing[key] = True
+
+
+def _game_to_summary(game: SavedGame) -> GameSummary:
+    return GameSummary(
+        id=game.id,
+        team_id=game.team_id,
+        game_date=game.game_date,
+        home_team_name=game.home_team_name,
+        away_team_name=game.away_team_name,
+        home_score=game.home_score,
+        away_score=game.away_score,
+        created_at=game.created_at.isoformat(),
+    )
+
+
+def _game_to_detail(game: SavedGame) -> GameDetail:
+    return GameDetail(
+        **_game_to_summary(game).model_dump(),
+        results=json.loads(game.results_json),
+    )
+
+
+def _team_summary(db: Session, team: Team) -> TeamSummary:
+    game_count = db.query(SavedGame).filter(SavedGame.team_id == team.id).count()
+    player_count = db.query(TeamPlayer).filter(TeamPlayer.team_id == team.id).count()
+    return TeamSummary(
+        id=team.id,
+        name=team.name,
+        game_count=game_count,
+        player_count=player_count,
+        created_at=team.created_at.isoformat(),
+    )
+
+
 @app.post("/auth/register", response_model=AuthResponse)
 def register(_body: RegisterRequest) -> AuthResponse:
     raise HTTPException(status_code=403, detail="Registration is disabled")
@@ -138,8 +164,7 @@ def site_access(body: AccessRequest, db: Session = Depends(get_db)) -> AuthRespo
     if not is_valid_site_password(body.password):
         raise HTTPException(status_code=401, detail="Invalid password")
     user = _get_or_create_site_user(db)
-    token = create_access_token(user.id)
-    return AuthResponse(access_token=token, user=_user_to_response(user))
+    return AuthResponse(access_token=create_access_token(user.id), user=_user_to_response(user))
 
 
 @app.post("/auth/login", response_model=AuthResponse)
@@ -148,354 +173,110 @@ def login(body: LoginRequest, db: Session = Depends(get_db)) -> AuthResponse:
         not body.email or is_allowed_login_email(body.email)
     ):
         user = _get_or_create_site_user(db)
-        token = create_access_token(user.id)
-        return AuthResponse(access_token=token, user=_user_to_response(user))
-
+        return AuthResponse(access_token=create_access_token(user.id), user=_user_to_response(user))
     email = normalize_email(body.email)
     if not is_allowed_login_email(email):
         raise HTTPException(status_code=403, detail="Use the site password to unlock Bounce PASS")
-
     user = db.query(User).filter(User.email == email).first()
     if not user or not verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid password")
-
-    token = create_access_token(user.id)
-    return AuthResponse(access_token=token, user=_user_to_response(user))
+    return AuthResponse(access_token=create_access_token(user.id), user=_user_to_response(user))
 
 
 @app.get("/auth/me", response_model=UserResponse)
-def auth_me(current_user: User = Depends(get_current_user)) -> UserResponse:
+def me(current_user: User = Depends(get_current_user)) -> UserResponse:
     return _user_to_response(current_user)
 
 
-def _user_games_query(db: Session, user: User):
-    return db.query(SavedGame).filter(SavedGame.user_id == user.id)
+@app.get("/teams", response_model=TeamListResponse)
+def list_teams(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> TeamListResponse:
+    teams = db.query(Team).filter(Team.user_id == current_user.id).order_by(Team.created_at.asc()).all()
+    return TeamListResponse(teams=[_team_summary(db, team) for team in teams])
 
 
-def _load_user_games(
-    db: Session,
-    user: User,
-    *,
-    gender: Optional[str] = None,
-    region: Optional[str] = None,
-) -> List[SavedGame]:
-    query = _user_games_query(db, user)
-    normalized_gender = normalize_gender(gender)
-    if normalized_gender:
-        query = query.filter(SavedGame.gender == normalized_gender)
-    normalized_region = normalize_region(region)
-    if normalized_region:
-        query = query.filter(SavedGame.region == normalized_region)
-    return query.order_by(SavedGame.game_date.desc(), SavedGame.created_at.desc()).all()
-
-
-async def parse_uploaded_csv(file: UploadFile) -> Tuple[Optional[pd.DataFrame], Optional[Dict[str, Any]]]:
-    contents = await file.read()
-    try:
-        text = contents.decode("utf-8")
-    except UnicodeDecodeError:
-        text = contents.decode("latin-1", errors="replace")
-    lines = text.splitlines()
-    lines = [
-        line for line in lines
-        if "Basic Box Score Stats" not in line
-        and line.strip() != ""
-    ]
-    header_index = detect_header_row(lines)
-    if header_index is None:
-        return None, {"error": "Could not detect header row", "preview": lines[:10]}
-    cleaned_csv = "\n".join(lines[header_index:])
-    try:
-        df = pd.read_csv(io.StringIO(cleaned_csv), skip_blank_lines=True)
-    except Exception as e:
-        return None, {"error": "Could not parse uploaded CSV", "details": str(e)}
-    df = clean_dataframe(df)
-    return df, None
-
-
-def game_to_summary(game: SavedGame) -> GameSummary:
-    home_score = game.home_score
-    away_score = game.away_score
-    if home_score is None and away_score is None:
-        results = json.loads(game.results_json)
-        home_score, away_score = scores_from_results(results)
-    return GameSummary(
-        id=game.id,
-        game_date=game.game_date,
-        home_team_name=game.home_team_name,
-        away_team_name=game.away_team_name,
-        home_score=home_score,
-        away_score=away_score,
-        gender=normalize_gender(game.gender),
-        region=normalize_region(game.region),
-        created_at=game.created_at.isoformat(),
-    )
-
-
-def game_to_detail(game: SavedGame) -> GameDetail:
-    results = json.loads(game.results_json)
-    home_score = game.home_score
-    away_score = game.away_score
-    if home_score is None and away_score is None:
-        home_score, away_score = scores_from_results(results)
-    return GameDetail(
-        id=game.id,
-        game_date=game.game_date,
-        home_team_name=game.home_team_name,
-        away_team_name=game.away_team_name,
-        home_score=home_score,
-        away_score=away_score,
-        gender=normalize_gender(game.gender),
-        region=normalize_region(game.region),
-        created_at=game.created_at.isoformat(),
-        results=results,
-    )
-
-
-def build_team_stats(df: pd.DataFrame) -> Dict[str, int]:
-    return {
-        "FGA": int(pd.to_numeric(df.get("FGA", 0), errors="coerce").sum()),
-        "FTA": int(pd.to_numeric(df.get("FTA", 0), errors="coerce").sum()),
-        "TOV": int(pd.to_numeric(df.get("TOV", 0), errors="coerce").sum()),
-        "ORB": int(pd.to_numeric(df.get("ORB", 0), errors="coerce").sum()),
-        "DRB": int(pd.to_numeric(df.get("DRB", 0), errors="coerce").sum()),
-        "TRB": int(pd.to_numeric(df.get("TRB", 0), errors="coerce").sum()),
-        "AST": int(pd.to_numeric(df.get("AST", 0), errors="coerce").sum()),
-        "PTS": int(pd.to_numeric(df.get("PTS", 0), errors="coerce").sum()),
-        "FG": int(pd.to_numeric(df.get("FG", 0), errors="coerce").sum()),
-    }
-
-
-def clean_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    for row in rows:
-        for k, v in row.items():
-            if isinstance(v, float) and (pd.isna(v) or v == float("inf") or v == float("-inf")):
-                row[k] = 0
-    return rows
-
-
-def calculate_stats(df: pd.DataFrame, opponent_stats: Optional[Dict[str, int]] = None) -> List[Dict[str, Any]]:
-    team_stats = build_team_stats(df)
-    rows = generate_advanced_stats(df, team_stats=team_stats, opponent_stats=opponent_stats)
-    for index, row in enumerate(rows):
-        row["Player"] = get_player_name(row, index)
-    return clean_rows(rows)
-
-
-@app.post("/upload-boxscore")
-async def upload_boxscore(
-    file: UploadFile = File(...),
+@app.post("/teams", response_model=TeamSummary)
+def create_team(
+    body: TeamCreateRequest,
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> Any:
-    df, error = await parse_uploaded_csv(file)
-    if error:
-        return JSONResponse(status_code=400, content=error)
-    if df is None:
-        return JSONResponse(status_code=400, content={"error": "Failed to process uploaded file"})
-
-    missing = validate_required_columns(df)
-    if missing:
-        return JSONResponse(
-            status_code=400,
-            content={"error": f"Missing columns: {missing}", "columns_found": df.columns.tolist()},
-        )
-
-    try:
-        return calculate_stats(df)
-    except Exception as exc:
-        return JSONResponse(status_code=500, content={"error": "Could not calculate stats", "details": str(exc)})
-
-
-@app.post("/upload-boxscores")
-async def upload_boxscores(
-    home: UploadFile = File(...),
-    away: UploadFile = File(...),
-    current_user: User = Depends(get_current_user),
-) -> Any:
-    home_df, home_error = await parse_uploaded_csv(home)
-    if home_error:
-        return JSONResponse(status_code=400, content={"which": "home", **home_error})
-    away_df, away_error = await parse_uploaded_csv(away)
-    if away_error:
-        return JSONResponse(status_code=400, content={"which": "away", **away_error})
-
-    if home_df is None or away_df is None:
-        return JSONResponse(status_code=400, content={"error": "Upload parsing failed"})
-
-    missing_home = validate_required_columns(home_df)
-    missing_away = validate_required_columns(away_df)
-    if missing_home or missing_away:
-        return JSONResponse(
-            status_code=400,
-            content={
-                "error": "Missing columns",
-                "missing_home": missing_home,
-                "missing_away": missing_away,
-                "home_columns": home_df.columns.tolist(),
-                "away_columns": away_df.columns.tolist(),
-            },
-        )
-
-    try:
-        home_team_stats = build_team_stats(home_df)
-        away_team_stats = build_team_stats(away_df)
-        home_rows = calculate_stats(home_df, opponent_stats=away_team_stats)
-        away_rows = calculate_stats(away_df, opponent_stats=home_team_stats)
-    except Exception as exc:
-        return JSONResponse(status_code=500, content={"error": "Could not calculate stats", "details": str(exc)})
-
-    return {"home": home_rows, "away": away_rows}
-
-
-@app.post("/upload-boxscore-url", response_model=BoxScoreUrlResponse)
-def upload_boxscore_url(
-    body: BoxScoreUrlRequest,
-    current_user: User = Depends(get_current_user),
-) -> Any:
-    try:
-        home_df, away_df, meta = scrape_game_from_url(body.url)
-    except UrlScrapeError as exc:
-        return JSONResponse(status_code=400, content={"error": str(exc)})
-
-    missing_home = validate_required_columns(home_df)
-    missing_away = validate_required_columns(away_df)
-    if missing_home or missing_away:
-        return JSONResponse(
-            status_code=400,
-            content={
-                "error": "Scraped box score is missing required columns",
-                "missing_home": missing_home,
-                "missing_away": missing_away,
-            },
-        )
-
-    try:
-        home_team_stats = build_team_stats(home_df)
-        away_team_stats = build_team_stats(away_df)
-        home_rows = calculate_stats(home_df, opponent_stats=away_team_stats)
-        away_rows = calculate_stats(away_df, opponent_stats=home_team_stats)
-    except Exception as exc:
-        return JSONResponse(status_code=500, content={"error": "Could not calculate stats", "details": str(exc)})
-
-    return BoxScoreUrlResponse(
-        home=home_rows,
-        away=away_rows,
-        meta=BoxScoreUrlMeta(
-            home_team_name=meta.get("home_team_name") or "Home",
-            away_team_name=meta.get("away_team_name") or "Away",
-            game_date=meta.get("game_date") or "",
-            fixture_id=meta.get("fixture_id") or "",
-            source_url=meta.get("source_url") or body.url.strip(),
-            provider=meta.get("provider"),
-        ),
+) -> TeamSummary:
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Team name is required")
+    existing = (
+        db.query(Team)
+        .filter(Team.user_id == current_user.id, func.lower(Team.name) == name.lower())
+        .first()
     )
+    if existing:
+        raise HTTPException(status_code=409, detail="A team with that name already exists")
+    team = Team(user_id=current_user.id, name=name)
+    db.add(team)
+    db.commit()
+    db.refresh(team)
+    return _team_summary(db, team)
 
 
-@app.post("/upload-nbl1-url", response_model=BoxScoreUrlResponse, include_in_schema=False)
-def upload_nbl1_url_legacy(body: BoxScoreUrlRequest) -> Any:
-    return upload_boxscore_url(body)
-
-
-@app.post("/calculate/boxscore")
-async def calculate_boxscore(file: UploadFile = File(...)) -> Any:
-    df, error = await parse_uploaded_csv(file)
-    if error:
-        return JSONResponse(status_code=400, content=error)
-    if df is None:
-        return JSONResponse(status_code=400, content={"error": "Failed to process uploaded file"})
-
-    missing = validate_required_columns(df)
-    if missing:
-        return JSONResponse(
-            status_code=400,
-            content={"error": f"Missing columns: {missing}", "columns_found": df.columns.tolist()},
-        )
-
-    try:
-        return calculate_stats(df)
-    except Exception as exc:
-        return JSONResponse(status_code=500, content={"error": "Could not calculate stats", "details": str(exc)})
-
-
-@app.post("/calculate/boxscores")
-async def calculate_boxscores(
-    home: UploadFile = File(...),
-    away: UploadFile = File(...),
-) -> Any:
-    home_df, home_error = await parse_uploaded_csv(home)
-    if home_error:
-        return JSONResponse(status_code=400, content={"which": "home", **home_error})
-    away_df, away_error = await parse_uploaded_csv(away)
-    if away_error:
-        return JSONResponse(status_code=400, content={"which": "away", **away_error})
-
-    if home_df is None or away_df is None:
-        return JSONResponse(status_code=400, content={"error": "Upload parsing failed"})
-
-    missing_home = validate_required_columns(home_df)
-    missing_away = validate_required_columns(away_df)
-    if missing_home or missing_away:
-        return JSONResponse(
-            status_code=400,
-            content={
-                "error": "Missing columns",
-                "missing_home": missing_home,
-                "missing_away": missing_away,
-                "home_columns": home_df.columns.tolist(),
-                "away_columns": away_df.columns.tolist(),
-            },
-        )
-
-    try:
-        home_team_stats = build_team_stats(home_df)
-        away_team_stats = build_team_stats(away_df)
-        home_rows = calculate_stats(home_df, opponent_stats=away_team_stats)
-        away_rows = calculate_stats(away_df, opponent_stats=home_team_stats)
-    except Exception as exc:
-        return JSONResponse(status_code=500, content={"error": "Could not calculate stats", "details": str(exc)})
-
-    return {"home": home_rows, "away": away_rows}
-
-
-@app.post("/calculate/boxscore-url", response_model=BoxScoreUrlResponse)
-def calculate_boxscore_url(body: BoxScoreUrlRequest) -> Any:
-    try:
-        home_df, away_df, meta = scrape_game_from_url(body.url)
-    except UrlScrapeError as exc:
-        return JSONResponse(status_code=400, content={"error": str(exc)})
-
-    missing_home = validate_required_columns(home_df)
-    missing_away = validate_required_columns(away_df)
-    if missing_home or missing_away:
-        return JSONResponse(
-            status_code=400,
-            content={
-                "error": "Scraped box score is missing required columns",
-                "missing_home": missing_home,
-                "missing_away": missing_away,
-            },
-        )
-
-    try:
-        home_team_stats = build_team_stats(home_df)
-        away_team_stats = build_team_stats(away_df)
-        home_rows = calculate_stats(home_df, opponent_stats=away_team_stats)
-        away_rows = calculate_stats(away_df, opponent_stats=home_team_stats)
-    except Exception as exc:
-        return JSONResponse(status_code=500, content={"error": "Could not calculate stats", "details": str(exc)})
-
-    return BoxScoreUrlResponse(
-        home=home_rows,
-        away=away_rows,
-        meta=BoxScoreUrlMeta(
-            home_team_name=meta.get("home_team_name") or "Home",
-            away_team_name=meta.get("away_team_name") or "Away",
-            game_date=meta.get("game_date") or "",
-            fixture_id=meta.get("fixture_id") or "",
-            source_url=meta.get("source_url") or body.url.strip(),
-            provider=meta.get("provider"),
-        ),
+@app.get("/teams/{team_id}/dashboard", response_model=TeamDashboardResponse)
+def team_dashboard(
+    team_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> TeamDashboardResponse:
+    team = _owned_team(db, current_user, team_id)
+    games = (
+        db.query(SavedGame)
+        .filter(SavedGame.team_id == team.id, SavedGame.user_id == current_user.id)
+        .order_by(SavedGame.game_date.desc(), SavedGame.created_at.desc())
+        .all()
     )
+    return TeamDashboardResponse(**build_team_analytics(team, games))
+
+
+@app.get("/teams/{team_id}/players", response_model=PlayerListResponse)
+def list_team_players(
+    team_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> PlayerListResponse:
+    team = _owned_team(db, current_user, team_id)
+    analytics = build_team_analytics(
+        team,
+        db.query(SavedGame)
+        .filter(SavedGame.team_id == team.id, SavedGame.user_id == current_user.id)
+        .all(),
+    )
+    stats_by_name = {normalize_name(player["player"]): player for player in analytics["players"]}
+    players = []
+    for stored in team.players:
+        stats = stats_by_name.get(normalize_name(stored.name), {})
+        players.append(
+            PlayerSummary(
+                id=stored.id,
+                name=stored.name,
+                games=int(stats.get("games") or 0),
+                pts=float(stats.get("pts") or 0),
+                trb=float(stats.get("trb") or 0),
+                ast=float(stats.get("ast") or 0),
+            )
+        )
+    players.sort(key=lambda item: (-item.pts, item.name))
+    return PlayerListResponse(players=players)
+
+
+@app.get("/players/dashboard", response_model=PlayerDashboardResponse)
+def player_dashboard(
+    team_id: int,
+    player_name: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> PlayerDashboardResponse:
+    team = _owned_team(db, current_user, team_id)
+    games = db.query(SavedGame).filter(SavedGame.team_id == team.id, SavedGame.user_id == current_user.id).all()
+    payload = build_player_analytics(team, games, player_name)
+    if not payload:
+        raise HTTPException(status_code=404, detail="Player not found on this team")
+    return PlayerDashboardResponse(**payload)
 
 
 @app.post("/games", response_model=GameDetail)
@@ -504,197 +285,52 @@ def save_game(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> GameDetail:
-    record, skipped = _insert_game_if_new(db, game_in, current_user.id)
-    if skipped:
-        raise HTTPException(status_code=409, detail="This game is already saved")
-    if not record:
-        raise HTTPException(status_code=400, detail="Could not save game")
-    return game_to_detail(record)
-
-
-@app.post("/games/import-batch", response_model=GameImportBatchResponse)
-def import_games_batch(
-    body: GameImportBatchRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> GameImportBatchResponse:
-    imported = 0
-    skipped = 0
-    failed = 0
-    errors: List[str] = []
-
-    for index, game_in in enumerate(body.games):
-        try:
-            record, was_skipped = _insert_game_if_new(db, game_in, current_user.id)
-            if was_skipped:
-                skipped += 1
-            elif record:
-                imported += 1
-            else:
-                failed += 1
-                errors.append(f"Row {index + 1}: could not save game")
-        except Exception as exc:
-            db.rollback()
-            failed += 1
-            errors.append(f"Row {index + 1}: {exc}")
-
-    return GameImportBatchResponse(
-        imported=imported,
-        skipped=skipped,
-        failed=failed,
-        errors=errors[:20],
-    )
-
-
-def _insert_game_if_new(
-    db: Session,
-    game_in: GameSaveRequest,
-    user_id: int,
-) -> Tuple[Optional[SavedGame], bool]:
-    fixture_id = (game_in.fixture_id or "").strip() or None
-    if fixture_id:
-        existing = (
-            db.query(SavedGame)
-            .filter(SavedGame.user_id == user_id, SavedGame.fixture_id == fixture_id)
-            .first()
+    team = _owned_team(db, current_user, game_in.team_id)
+    opponent = (game_in.opponent_name or "").strip() or None
+    existing = (
+        db.query(SavedGame)
+        .filter(
+            SavedGame.team_id == team.id,
+            SavedGame.game_date == game_in.game_date.strip(),
+            func.lower(func.coalesce(SavedGame.away_team_name, "")) == (opponent or "").lower(),
         )
-        if existing:
-            return existing, True
-
-    legacy = find_game_by_identity(
-        db,
-        user_id,
-        game_in.game_date,
-        game_in.home_team_name,
-        game_in.away_team_name,
-        gender=game_in.gender,
+        .first()
     )
-    if legacy:
-        if fixture_id or game_in.gender or game_in.region:
-            upgrade_saved_game_from_sync(
-                legacy,
-                results=game_in.results,
-                fixture_id=fixture_id or legacy.fixture_id or "",
-                source_url=(game_in.source_url or legacy.source_url or "").strip(),
-                gender=game_in.gender or legacy.gender,
-                region=game_in.region or legacy.region,
-                game_date=game_in.game_date,
-                home_team_name=game_in.home_team_name,
-                away_team_name=game_in.away_team_name,
-            )
-            if game_in.provider:
-                legacy.provider = (game_in.provider or "").strip() or legacy.provider
-            db.commit()
-            db.refresh(legacy)
-            return legacy, True
-        return legacy, True
+    if existing:
+        raise HTTPException(status_code=409, detail="This game is already saved for the team")
 
-    record = SavedGame(
-        user_id=user_id,
-        game_date=game_in.game_date.strip(),
-        home_team_name=game_in.home_team_name.strip(),
-        away_team_name=game_in.away_team_name.strip() if game_in.away_team_name else None,
-        results_json=json.dumps(game_in.results),
-        fixture_id=fixture_id,
-        source_url=(game_in.source_url or "").strip() or None,
-        provider=(game_in.provider or "").strip() or None,
-        gender=normalize_gender(game_in.gender),
-        region=normalize_region(game_in.region),
-    )
     home_score, away_score = scores_from_results(game_in.results)
-    record.home_score = home_score
-    record.away_score = away_score
+    record = SavedGame(
+        user_id=current_user.id,
+        team_id=team.id,
+        game_date=game_in.game_date.strip(),
+        home_team_name=team.name,
+        away_team_name=opponent,
+        results_json=json.dumps(game_in.results),
+        home_score=home_score,
+        away_score=away_score,
+    )
     db.add(record)
+    _upsert_players(db, team, game_in.results)
     db.commit()
     db.refresh(record)
-    return record, False
-
-
-@app.post("/games/dedupe", response_model=GameDedupeResponse)
-def dedupe_games(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> GameDedupeResponse:
-    from nbl1_fixtures_sync import backfill_nbl1_metadata_from_fixtures, discover_nbl1_fixtures
-
-    stats = dedupe_user_saved_games(db, current_user.id)
-    updated_metadata_count = 0
-    try:
-        _, fixtures = discover_nbl1_fixtures()
-        updated_metadata_count = backfill_nbl1_metadata_from_fixtures(
-            db, fixtures, user_id=current_user.id
-        )
-    except Exception:
-        pass
-
-    return GameDedupeResponse(
-        deleted=stats["deleted"],
-        remaining=stats["remaining"],
-        updated_metadata_count=updated_metadata_count,
-    )
-
-
-@app.post("/sync/nbl1-fixtures", response_model=Nbl1SyncStartResponse)
-def sync_nbl1_fixtures_endpoint(
-    body: Nbl1SyncRequest,
-    current_user: User = Depends(get_current_user),
-) -> Nbl1SyncStartResponse:
-    payload = start_sync_job(
-        user_id=current_user.id,
-        season_year=body.season_year,
-        max_imports=body.max_imports or DEMO_SYNC_LIMIT,
-    )
-    return Nbl1SyncStartResponse(**payload)
-
-
-@app.get("/sync/nbl1-fixtures/status", response_model=Nbl1SyncStatusResponse)
-def sync_nbl1_fixtures_status(
-    current_user: User = Depends(get_current_user),
-) -> Nbl1SyncStatusResponse:
-    status = get_sync_status(current_user.id)
-    result = status.get("result")
-    return Nbl1SyncStatusResponse(
-        running=status["running"],
-        progress=status.get("progress") or "",
-        result=Nbl1SyncResponse(**result) if result else None,
-        error=status.get("error"),
-    )
+    return _game_to_detail(record)
 
 
 @app.get("/games", response_model=GameListResponse)
 def list_games(
-    gender: Optional[str] = None,
-    region: Optional[str] = None,
-    team: Optional[str] = None,
+    team_id: Optional[int] = None,
     limit: int = 100,
     offset: int = 0,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> GameListResponse:
-    from sqlalchemy import func, or_
-
     safe_limit = max(1, min(limit, 200))
     safe_offset = max(0, offset)
-
-    query = _user_games_query(db, current_user)
-    normalized_gender = normalize_gender(gender)
-    if normalized_gender:
-        query = query.filter(SavedGame.gender == normalized_gender)
-
-    normalized_region = normalize_region(region)
-    if normalized_region:
-        query = query.filter(SavedGame.region == normalized_region)
-
-    team_query = (team or "").strip().lower()
-    if team_query:
-        pattern = f"%{team_query}%"
-        query = query.filter(
-            or_(
-                func.lower(SavedGame.home_team_name).like(pattern),
-                func.lower(SavedGame.away_team_name).like(pattern),
-            )
-        )
-
+    query = db.query(SavedGame).filter(SavedGame.user_id == current_user.id)
+    if team_id:
+        _owned_team(db, current_user, team_id)
+        query = query.filter(SavedGame.team_id == team_id)
     total = query.count()
     games = (
         query.order_by(SavedGame.game_date.desc(), SavedGame.created_at.desc())
@@ -703,172 +339,11 @@ def list_games(
         .all()
     )
     return GameListResponse(
-        games=[game_to_summary(game) for game in games],
+        games=[_game_to_summary(game) for game in games],
         total=total,
         limit=safe_limit,
         offset=safe_offset,
     )
-
-
-@app.get("/teams", response_model=TeamListResponse)
-def list_teams(
-    gender: Optional[str] = None,
-    region: Optional[str] = None,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> TeamListResponse:
-    games = _user_games_query(db, current_user).all()
-    filtered = filter_games_by_gender(games, gender)
-    filtered = filter_games_by_region(filtered, region)
-    options = collect_team_options(filtered, require_gender=False, require_region=False)
-    return TeamListResponse(teams=[option["label"] for option in options], options=options)
-
-
-@app.get("/teams/dashboard", response_model=TeamDashboardResponse)
-def team_dashboard(
-    team_name: str,
-    gender: Optional[str] = None,
-    region: Optional[str] = None,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> TeamDashboardResponse:
-    query = team_name.strip()
-    if not query:
-        raise HTTPException(status_code=400, detail="team_name is required")
-
-    normalized_gender = normalize_gender(gender)
-    normalized_region = normalize_region(region)
-
-    with timed_step("team_dashboard.db_query"):
-        games = _load_user_games(
-            db,
-            current_user,
-            gender=normalized_gender,
-            region=normalized_region,
-        )
-    with timed_step("team_dashboard.build"):
-        dashboard = build_team_dashboard(
-            games,
-            query,
-            gender=normalized_gender,
-            region=normalized_region,
-        )
-    if dashboard["games_played"] == 0:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No saved games found for {dashboard['team_label']}",
-        )
-    return TeamDashboardResponse(**dashboard)
-
-
-@app.get("/teams/leaders", response_model=TeamLeagueLeadersResponse)
-def team_leaders(
-    gender: Optional[str] = None,
-    region: Optional[str] = None,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> TeamLeagueLeadersResponse:
-    with timed_step("team_leaders.db_query"):
-        games = _load_user_games(
-            db,
-            current_user,
-            gender=normalize_gender(gender),
-            region=normalize_region(region),
-        )
-    with timed_step("team_leaders.build"):
-        payload = build_team_league_leaders(
-            games,
-            gender=normalize_gender(gender),
-            region=normalize_region(region),
-        )
-    return TeamLeagueLeadersResponse(**payload)
-
-
-@app.get("/players", response_model=PlayerListResponse)
-def list_players(
-    gender: Optional[str] = None,
-    region: Optional[str] = None,
-    team_name: Optional[str] = None,
-    team_gender: Optional[str] = None,
-    team_region: Optional[str] = None,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> PlayerListResponse:
-    games = (
-        _user_games_query(db, current_user)
-        .order_by(SavedGame.game_date.desc(), SavedGame.created_at.desc())
-        .all()
-    )
-    filtered = filter_games_by_gender(games, gender)
-    filtered = filter_games_by_region(filtered, region)
-    return PlayerListResponse(
-        players=collect_player_names(
-            filtered,
-            team_name=team_name.strip() if team_name else None,
-            team_gender=normalize_gender(team_gender),
-            team_region=normalize_region(team_region),
-        )
-    )
-
-
-@app.get("/players/leaders", response_model=PlayerLeagueLeadersResponse)
-def player_leaders(
-    gender: Optional[str] = None,
-    region: Optional[str] = None,
-    team_name: Optional[str] = None,
-    team_gender: Optional[str] = None,
-    team_region: Optional[str] = None,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> PlayerLeagueLeadersResponse:
-    with timed_step("player_leaders.db_query"):
-        games = _load_user_games(
-            db,
-            current_user,
-            gender=normalize_gender(gender),
-            region=normalize_region(region),
-        )
-    with timed_step("player_leaders.build"):
-        payload = build_league_leader_players(
-            games,
-            gender=normalize_gender(gender),
-            region=normalize_region(region),
-            team_name=team_name.strip() if team_name else None,
-            team_gender=normalize_gender(team_gender),
-            team_region=normalize_region(team_region),
-        )
-    return PlayerLeagueLeadersResponse(**payload)
-
-
-@app.get("/players/dashboard", response_model=PlayerDashboardResponse)
-def player_dashboard(
-    player_name: str,
-    gender: Optional[str] = None,
-    region: Optional[str] = None,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> PlayerDashboardResponse:
-    query = player_name.strip()
-    if not query:
-        raise HTTPException(status_code=400, detail="player_name is required")
-
-    with timed_step("player_dashboard.db_query"):
-        games = _load_user_games(
-            db,
-            current_user,
-            gender=normalize_gender(gender),
-            region=normalize_region(region),
-        )
-    with timed_step("player_dashboard.build"):
-        dashboard = build_player_dashboard(
-            games,
-            query,
-            gender=normalize_gender(gender),
-            region=normalize_region(region),
-        )
-    if dashboard["games_played"] == 0:
-        raise HTTPException(status_code=404, detail=f"No saved games found for player '{query}'")
-    return PlayerDashboardResponse(**dashboard)
 
 
 @app.get("/games/{game_id}", response_model=GameDetail)
@@ -877,42 +352,27 @@ def get_game(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> GameDetail:
-    game = (
-        _user_games_query(db, current_user)
-        .filter(SavedGame.id == game_id)
-        .first()
-    )
+    game = db.query(SavedGame).filter(SavedGame.id == game_id, SavedGame.user_id == current_user.id).first()
     if not game:
         raise HTTPException(status_code=404, detail="Game not found")
-    return game_to_detail(game)
+    return _game_to_detail(game)
 
 
 @app.put("/games/{game_id}", response_model=GameDetail)
 def update_game(
     game_id: int,
-    game_in: GameUpdateRequest,
+    body: GameUpdateRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> GameDetail:
-    game = (
-        _user_games_query(db, current_user)
-        .filter(SavedGame.id == game_id)
-        .first()
-    )
+    game = db.query(SavedGame).filter(SavedGame.id == game_id, SavedGame.user_id == current_user.id).first()
     if not game:
         raise HTTPException(status_code=404, detail="Game not found")
-
-    game.game_date = game_in.game_date.strip()
-    game.home_team_name = game_in.home_team_name.strip()
-    game.away_team_name = game_in.away_team_name.strip() if game_in.away_team_name else None
-    if game_in.gender is not None:
-        game.gender = normalize_gender(game_in.gender)
-    if game_in.region is not None:
-        game.region = normalize_region(game_in.region)
+    game.game_date = body.game_date.strip()
+    game.away_team_name = (body.opponent_name or "").strip() or None
     db.commit()
     db.refresh(game)
-
-    return game_to_detail(game)
+    return _game_to_detail(game)
 
 
 @app.delete("/games/{game_id}")
@@ -920,12 +380,8 @@ def delete_game(
     game_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> Dict[str, bool]:
-    game = (
-        _user_games_query(db, current_user)
-        .filter(SavedGame.id == game_id)
-        .first()
-    )
+):
+    game = db.query(SavedGame).filter(SavedGame.id == game_id, SavedGame.user_id == current_user.id).first()
     if not game:
         raise HTTPException(status_code=404, detail="Game not found")
     db.delete(game)

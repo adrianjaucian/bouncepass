@@ -21,21 +21,3 @@ export async function isAuthenticated(cookieValue: string | undefined): Promise<
   const parts = cookieValue.split(".");
   return parts.length === 3 && parts.every((part) => part.length > 0);
 }
-
-export async function isDemoSession(token: string | undefined): Promise<boolean> {
-  if (!(await isAuthenticated(token)) || !token) {
-    return false;
-  }
-  try {
-    const backendResponse = await fetch(`${getBackendUrl()}/auth/me`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!backendResponse.ok) {
-      return false;
-    }
-    const data = await backendResponse.json().catch(() => ({}));
-    return isAllowedAccountEmail((data as { email?: string }).email);
-  } catch {
-    return false;
-  }
-}

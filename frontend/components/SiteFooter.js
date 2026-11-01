@@ -1,7 +1,7 @@
 import { BUG_REPORT_MAILTO, CONTACT_MAILTO } from "../lib/contact";
 
 const linkStyle = {
-  color: "#56616b",
+  color: "#fff3b0",
   textDecoration: "none",
   fontSize: "13px",
 };
@@ -14,8 +14,8 @@ export default function SiteFooter() {
         padding: "16px 20px",
         textAlign: "center",
         fontFamily: "Arial, sans-serif",
-        borderTop: "1px solid #e8edf2",
-        backgroundColor: "#f8f9fa",
+        borderTop: "3px solid #f1c40f",
+        backgroundColor: "#1b2838",
       }}
     >
       <nav aria-label="Support links" style={{ display: "flex", justifyContent: "center", gap: "20px", flexWrap: "wrap" }}>

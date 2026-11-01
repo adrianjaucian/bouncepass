@@ -3,24 +3,26 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import ExportSavedGameButton from "../../components/ExportSavedGameButton";
+import { useTeam } from "../../components/TeamProvider";
 import api from "../../lib/api";
 import { formatSavedGameLabel } from "../../lib/gameResultsUtils";
+import { COLORS, pageHeader, pageInner, pageMain, pageShell, subtitleStyle, titleStyle } from "../../lib/theme";
 
 type SavedGameSummary = {
   id: number;
+  team_id?: number | null;
   game_date: string;
   home_team_name: string;
   away_team_name?: string | null;
   home_score?: number | null;
   away_score?: number | null;
-  gender?: string | null;
-  region?: string | null;
   created_at: string;
 };
 
 const PAGE_SIZE = 100;
 
 export default function SavedGamesPage() {
+  const { currentTeam, loading: teamLoading } = useTeam();
   const [games, setGames] = useState<SavedGameSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -29,6 +31,12 @@ export default function SavedGamesPage() {
 
   const loadGames = useCallback(
     async ({ append = false, offset = 0 }: { append?: boolean; offset?: number } = {}) => {
+      if (!currentTeam) {
+        setGames([]);
+        setTotal(0);
+        setLoading(false);
+        return;
+      }
       if (append) {
         setLoadingMore(true);
       } else {
@@ -37,12 +45,9 @@ export default function SavedGamesPage() {
       setError("");
 
       try {
-        const params: Record<string, string | number> = {
-          limit: PAGE_SIZE,
-          offset,
-        };
-
-        const res = await api.get("/games", { params });
+        const res = await api.get("/games", {
+          params: { team_id: currentTeam.id, limit: PAGE_SIZE, offset },
+        });
         const nextGames: SavedGameSummary[] = res.data?.games || [];
         setTotal(res.data?.total ?? nextGames.length);
         setGames((current) => (append ? [...current, ...nextGames] : nextGames));
@@ -59,7 +64,7 @@ export default function SavedGamesPage() {
         setLoadingMore(false);
       }
     },
-    [],
+    [currentTeam],
   );
 
   useEffect(() => {
@@ -80,34 +85,48 @@ export default function SavedGamesPage() {
   const hasMore = games.length < total;
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#f8f9fa", fontFamily: "Arial, sans-serif" }}>
-      <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "40px 20px" }}>
-        <header style={{ textAlign: "center", marginBottom: "24px", backgroundColor: "#fff", padding: "30px", borderRadius: "10px", boxShadow: "0 2px 10px rgba(0,0,0,0.1)" }}>
-          <h1 style={{ color: "#2c3e50", margin: "0 0 10px 0", fontSize: "2.2em" }}>Advanced Box Scores</h1>
-          <p style={{ color: "#7f8c8d", margin: 0 }}>Browse games saved to your database. Teams are listed as Home Team vs Away Team</p>
+    <div style={pageShell}>
+      <div style={pageInner}>
+        <header style={pageHeader}>
+          <h1 style={{ ...titleStyle, fontSize: "2.2em" }}>Advanced Box Scores</h1>
+          <p style={subtitleStyle}>
+            {currentTeam
+              ? `Saved games for ${currentTeam.name}. Each save also stores that team's players.`
+              : "Create a team on Home to start saving box scores."}
+          </p>
         </header>
 
-        <main style={{ backgroundColor: "#fff", padding: "30px", borderRadius: "10px", boxShadow: "0 2px 10px rgba(0,0,0,0.1)" }}>
-          {loading && <p style={{ color: "#56616b" }}>Loading saved games...</p>}
+        <main style={pageMain}>
+          {(loading || teamLoading) && <p style={{ color: COLORS.muted }}>Loading saved games...</p>}
           {error && (
-            <div style={{ color: "#c0392b", backgroundColor: "#fdecea", padding: "14px", borderRadius: "8px", border: "1px solid #f5c6cb", marginBottom: "16px" }}>
+            <div style={{ color: COLORS.danger, backgroundColor: COLORS.dangerBg, padding: "14px", borderRadius: "8px", marginBottom: "16px" }}>
               {error}
-              <div style={{ marginTop: "10px", fontSize: "14px" }}>
-                If this keeps happening, restart the backend server. A long sync may have blocked it earlier.
-              </div>
             </div>
           )}
 
-          {!loading && !error && total === 0 && (
-            <p style={{ color: "#56616b" }}>
-              No games saved yet. Upload a box score on{" "}
-              <Link href="/" style={{ color: "#3498db" }}>Home</Link> and save it here.
+          {!currentTeam && !teamLoading && (
+            <p style={{ color: COLORS.muted }}>
+              No team selected.{" "}
+              <Link href="/" style={{ color: COLORS.navy, fontWeight: 700 }}>
+                Add a team
+              </Link>{" "}
+              to track box scores.
+            </p>
+          )}
+
+          {currentTeam && !loading && !error && total === 0 && (
+            <p style={{ color: COLORS.muted }}>
+              No games saved for {currentTeam.name} yet. Upload a box score on{" "}
+              <Link href="/" style={{ color: COLORS.navy }}>
+                Home
+              </Link>{" "}
+              and save it here.
             </p>
           )}
 
           {games.length > 0 && (
             <>
-              <p style={{ margin: "0 0 12px 0", color: "#7f8c8d", fontSize: "14px" }}>
+              <p style={{ margin: "0 0 12px 0", color: COLORS.muted, fontSize: "14px" }}>
                 Showing {games.length} of {total} game{total === 1 ? "" : "s"}
               </p>
               <div style={{ display: "grid", gap: "12px" }}>
@@ -116,34 +135,24 @@ export default function SavedGamesPage() {
                     key={game.id}
                     style={{
                       padding: "16px",
-                      border: "1px solid #e1e8ed",
+                      border: `1px solid ${COLORS.greyBorder}`,
                       borderRadius: "8px",
-                      backgroundColor: "#fafbfc",
+                      backgroundColor: COLORS.greyRow,
                     }}
                   >
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        gap: "16px",
-                        flexWrap: "wrap",
-                      }}
-                    >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
                       <div>
-                        <div style={{ fontWeight: "bold", color: "#2c3e50", fontSize: "16px", display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-                          <span>
-                            {formatSavedGameLabel({
-                              homeTeamName: game.home_team_name,
-                              awayTeamName: game.away_team_name ?? null,
-                              homeScore: game.home_score ?? null,
-                              awayScore: game.away_score ?? null,
-                              results: null,
-                              variant: "list",
-                            })}
-                          </span>
+                        <div style={{ fontWeight: "bold", color: COLORS.navy, fontSize: "16px" }}>
+                          {formatSavedGameLabel({
+                            homeTeamName: game.home_team_name,
+                            awayTeamName: game.away_team_name ?? null,
+                            homeScore: game.home_score ?? null,
+                            awayScore: game.away_score ?? null,
+                            results: null,
+                            variant: "list",
+                          })}
                         </div>
-                        <div style={{ color: "#56616b", fontSize: "14px", marginTop: "4px" }}>
+                        <div style={{ color: COLORS.muted, fontSize: "14px", marginTop: "4px" }}>
                           {game.game_date} · Saved {new Date(game.created_at).toLocaleString()}
                         </div>
                       </div>
@@ -153,8 +162,8 @@ export default function SavedGamesPage() {
                           href={`/saved-games/${game.id}`}
                           style={{
                             padding: "10px 16px",
-                            backgroundColor: "#3498db",
-                            color: "white",
+                            backgroundColor: COLORS.navy,
+                            color: COLORS.gold,
                             borderRadius: "6px",
                             textDecoration: "none",
                             fontWeight: "bold",
@@ -192,8 +201,8 @@ export default function SavedGamesPage() {
                   style={{
                     marginTop: "20px",
                     padding: "12px 20px",
-                    backgroundColor: loadingMore ? "#bdc3c7" : "#2c3e50",
-                    color: "#fff",
+                    backgroundColor: loadingMore ? COLORS.greyAlt : COLORS.navy,
+                    color: loadingMore ? COLORS.grey : COLORS.gold,
                     border: "none",
                     borderRadius: "6px",
                     fontWeight: "bold",

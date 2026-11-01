@@ -11,13 +11,12 @@ import { formatSavedGameLabel } from "../../../lib/gameResultsUtils";
 
 type SavedGameDetail = {
   id: number;
+  team_id?: number | null;
   game_date: string;
   home_team_name: string;
   away_team_name?: string | null;
   home_score?: number | null;
   away_score?: number | null;
-  gender?: string | null;
-  region?: string | null;
   created_at: string;
   results: { home?: unknown[]; away?: unknown[] };
 };
@@ -55,10 +54,10 @@ export default function SavedGameDetailPage() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#f8f9fa", fontFamily: "Arial, sans-serif" }}>
+    <div style={{ minHeight: "100vh", backgroundColor: "#f7f4ea", fontFamily: "Arial, sans-serif" }}>
       <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "40px 20px" }}>
         <header style={{ textAlign: "center", marginBottom: "24px", backgroundColor: "#fff", padding: "30px", borderRadius: "10px", boxShadow: "0 2px 10px rgba(0,0,0,0.1)" }}>
-          <h1 style={{ color: "#2c3e50", margin: "0 0 10px 0", fontSize: "2.2em" }}>
+          <h1 style={{ color: "#1b2838", margin: "0 0 10px 0", fontSize: "2.2em" }}>
             {game
               ? formatSavedGameLabel({
                   homeTeamName: game.home_team_name,
@@ -70,7 +69,7 @@ export default function SavedGameDetailPage() {
               : "Saved Game"}
           </h1>
           {game && (
-            <p style={{ color: "#7f8c8d", margin: 0 }}>
+            <p style={{ color: "#5d6d7e", margin: 0 }}>
               {game.game_date} · Saved {new Date(game.created_at).toLocaleString()}
             </p>
           )}
@@ -86,7 +85,7 @@ export default function SavedGameDetailPage() {
           {game && (
             <>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", marginBottom: "16px", flexWrap: "wrap" }}>
-                <h3 style={{ color: "#2c3e50", margin: "20px 0 10px 0" }}>Results</h3>
+                <h3 style={{ color: "#1b2838", margin: "20px 0 10px 0" }}>Results</h3>
                 <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
                   <button
                     onClick={() => setEditing((current) => !current)}
@@ -128,7 +127,7 @@ export default function SavedGameDetailPage() {
           )}
           {!loading && !error && (
             <div style={{ marginTop: "24px" }}>
-              <Link href="/saved-games" style={{ color: "#3498db", fontWeight: "bold" }}>
+              <Link href="/saved-games" style={{ color: "#1b2838", fontWeight: "bold" }}>
                 ← Back to Advanced Box Scores
               </Link>
             </div>

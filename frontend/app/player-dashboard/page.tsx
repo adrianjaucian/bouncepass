@@ -1,85 +1,92 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import PlayerDashboardDetail from "../../components/PlayerDashboardDetail";
-import PlayerLeagueLeaders from "../../components/PlayerLeagueLeaders";
+import { useTeam } from "../../components/TeamProvider";
 import api from "../../lib/api";
+import { COLORS, pageHeader, pageInner, pageMain, pageShell, subtitleStyle, titleStyle } from "../../lib/theme";
+
+type TeamPlayer = {
+  id: number;
+  name: string;
+  games: number;
+  pts: number;
+  trb: number;
+  ast: number;
+};
 
 type PlayerDashboard = {
+  team_id: number;
+  team_name: string;
   player_name: string;
-  query: string;
   games_played: number;
-  teams: string[];
-  stats: Record<string, any> | null;
+  stats: Record<string, any>;
   games: Record<string, any>[];
-  trend_charts?: Record<string, any>;
-  league_players: number;
-  league_games: number;
 };
 
 function PlayerDashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { currentTeam, loading: teamLoading } = useTeam();
   const initialPlayer = searchParams.get("player") || "";
 
-  const [players, setPlayers] = useState<string[]>([]);
+  const [players, setPlayers] = useState<TeamPlayer[]>([]);
   const [selectedPlayer, setSelectedPlayer] = useState(initialPlayer);
   const [dashboard, setDashboard] = useState<PlayerDashboard | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
+    const query = initialPlayer.trim();
+    if (query) setSelectedPlayer(query);
+  }, [initialPlayer]);
+
+  useEffect(() => {
     const loadPlayers = async () => {
+      if (!currentTeam) {
+        setPlayers([]);
+        return;
+      }
       try {
-        const res = await api.get("/players");
+        const res = await api.get(`/teams/${currentTeam.id}/players`);
         setPlayers(res.data?.players || []);
       } catch {
         setPlayers([]);
       }
     };
     loadPlayers();
-  }, []);
-
-  useEffect(() => {
-    const query = initialPlayer.trim();
-    if (!query) return;
-    setSelectedPlayer(query);
-  }, [initialPlayer]);
-
-  const fetchDashboard = useCallback(async (playerName: string) => {
-    const res = await api.get("/players/dashboard", {
-      params: { player_name: playerName.trim() },
-    });
-    return res.data as PlayerDashboard;
-  }, []);
+  }, [currentTeam]);
 
   useEffect(() => {
     const loadDashboard = async () => {
-      if (!selectedPlayer.trim()) {
+      if (!currentTeam || !selectedPlayer.trim()) {
         setDashboard(null);
         setError("");
         return;
       }
-
       setLoading(true);
       setError("");
       try {
-        const data = await fetchDashboard(selectedPlayer);
-        setDashboard(data);
+        const res = await api.get("/players/dashboard", {
+          params: { team_id: currentTeam.id, player_name: selectedPlayer.trim() },
+        });
+        setDashboard(res.data);
       } catch (err: any) {
         const message =
           err?.response?.data?.detail ||
           err?.response?.data?.error ||
           err?.message ||
-          "Could not load player dashboard.";
+          "Could not load player analytics.";
         setError(typeof message === "string" ? message : JSON.stringify(message));
+        setDashboard(null);
       } finally {
         setLoading(false);
       }
     };
     loadDashboard();
-  }, [selectedPlayer, fetchDashboard]);
+  }, [currentTeam, selectedPlayer]);
 
   const selectPlayer = (name: string) => {
     const next = name.trim();
@@ -92,74 +99,71 @@ function PlayerDashboardContent() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#f8f9fa", fontFamily: "Arial, sans-serif" }}>
-      <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "40px 20px" }}>
-        <header
-          style={{
-            textAlign: "center",
-            marginBottom: "24px",
-            backgroundColor: "#fff",
-            padding: "30px",
-            borderRadius: "10px",
-            boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
-          }}
-        >
-          <h1 style={{ color: "#2c3e50", margin: "0 0 10px 0", fontSize: "2.2em" }}>Player Metrics</h1>
-          <p style={{ color: "#7f8c8d", margin: 0 }}>
-            Season totals, per-game averages, advanced metrics, and league ranks across all saved box scores.
+    <div style={pageShell}>
+      <div style={pageInner}>
+        <header style={pageHeader}>
+          <h1 style={{ ...titleStyle, fontSize: "2.2em" }}>Player Analytics</h1>
+          <p style={subtitleStyle}>
+            {currentTeam
+              ? `Individual metrics for players stored on ${currentTeam.name}.`
+              : "Create a team on Home, then save box scores to track players."}
           </p>
         </header>
 
-        <main
-          style={{
-            backgroundColor: "#fff",
-            padding: "30px",
-            borderRadius: "10px",
-            boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
-          }}
-        >
-          <div style={{ marginBottom: "24px", maxWidth: "360px" }}>
-            <label htmlFor="player-select" style={{ display: "block", marginBottom: "8px", color: "#2c3e50", fontWeight: "bold" }}>
-              Player
-            </label>
-            <select
-              id="player-select"
-              value={selectedPlayer}
-              onChange={(event) => selectPlayer(event.target.value)}
-              style={{
-                width: "100%",
-                padding: "12px 14px",
-                borderRadius: "8px",
-                border: "1px solid #d0d7de",
-                fontSize: "14px",
-                color: "#000",
-                backgroundColor: "#fff",
-              }}
-            >
-              <option value="">Choose a player...</option>
-              {players.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
-            {players.length === 0 && (
-              <p style={{ margin: "10px 0 0 0", color: "#7f8c8d", fontSize: "13px" }}>
-                Save a box score from Home to populate this list.
-              </p>
-            )}
-          </div>
+        <main style={pageMain}>
+          {!currentTeam && !teamLoading && (
+            <p style={{ color: COLORS.muted }}>
+              No team selected.{" "}
+              <Link href="/" style={{ color: COLORS.navy, fontWeight: 700 }}>
+                Add a team
+              </Link>{" "}
+              first.
+            </p>
+          )}
 
-          {loading && <p style={{ color: "#56616b", marginBottom: "24px" }}>Loading player data...</p>}
+          {currentTeam && (
+            <div style={{ marginBottom: "24px", maxWidth: "360px" }}>
+              <label htmlFor="player-select" style={{ display: "block", marginBottom: "8px", color: COLORS.navy, fontWeight: "bold" }}>
+                Player
+              </label>
+              <select
+                id="player-select"
+                value={selectedPlayer}
+                onChange={(event) => selectPlayer(event.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "12px 14px",
+                  borderRadius: "8px",
+                  border: `1px solid ${COLORS.greyBorder}`,
+                  fontSize: "14px",
+                  color: COLORS.navy,
+                  backgroundColor: "#fff",
+                }}
+              >
+                <option value="">Choose a player...</option>
+                {players.map((player) => (
+                  <option key={player.id} value={player.name}>
+                    {player.name}
+                  </option>
+                ))}
+              </select>
+              {players.length === 0 && (
+                <p style={{ margin: "10px 0 0 0", color: COLORS.muted, fontSize: "13px" }}>
+                  Save a box score from Home to store this team&apos;s players.
+                </p>
+              )}
+            </div>
+          )}
+
+          {loading && <p style={{ color: COLORS.muted, marginBottom: "24px" }}>Loading player data...</p>}
 
           {error && (
             <div
               style={{
-                color: "#c0392b",
-                backgroundColor: "#fdecea",
+                color: COLORS.danger,
+                backgroundColor: COLORS.dangerBg,
                 padding: "14px",
                 borderRadius: "8px",
-                border: "1px solid #f5c6cb",
                 marginBottom: "24px",
               }}
             >
@@ -167,15 +171,7 @@ function PlayerDashboardContent() {
             </div>
           )}
 
-          {dashboard && !loading && (
-            <div style={{ marginBottom: "32px", paddingBottom: "8px" }}>
-              <PlayerDashboardDetail dashboard={dashboard} />
-            </div>
-          )}
-
-          {!selectedPlayer.trim() && !loading && !error && (
-            <PlayerLeagueLeaders onSelectPlayer={selectPlayer} selectedPlayer={selectedPlayer} />
-          )}
+          {dashboard && !loading && <PlayerDashboardDetail dashboard={dashboard} />}
         </main>
       </div>
     </div>

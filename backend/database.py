@@ -1,6 +1,5 @@
 import logging
 import os
-import threading
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import declarative_base, sessionmaker
@@ -60,20 +59,25 @@ def _migrate_saved_games_columns():
             )
 
 
+def _migrate_team_columns():
+    from sqlalchemy import inspect
+
+    inspector = inspect(engine)
+    tables = set(inspector.get_table_names())
+    if "saved_games" in tables:
+        existing = {column["name"] for column in inspector.get_columns("saved_games")}
+        if "team_id" not in existing:
+            with engine.begin() as connection:
+                connection.execute(text("ALTER TABLE saved_games ADD COLUMN team_id INTEGER"))
+
+
 def init_db():
-    from models import SavedGame, User  # noqa: F401
+    from models import SavedGame, Team, TeamPlayer, User  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
     _migrate_saved_games_columns()
+    _migrate_team_columns()
     _backfill_cached_scores()
-    # NBL1 metadata backfill hits the public fixtures API (five conferences).
-    # Running it inline blocks gunicorn from binding, so Render health checks
-    # fail and the new deploy is discarded. Keep it off the startup path.
-    threading.Thread(
-        target=_backfill_nbl1_metadata,
-        name="nbl1-metadata-backfill",
-        daemon=True,
-    ).start()
 
 
 def _backfill_cached_scores():
@@ -90,30 +94,5 @@ def _backfill_cached_scores():
             game.home_score = home_score
             game.away_score = away_score
         db.commit()
-    finally:
-        db.close()
-
-
-def _backfill_nbl1_metadata():
-    from models import SavedGame
-    from nbl1_fixtures_sync import backfill_nbl1_metadata_from_fixtures, discover_nbl1_fixtures
-
-    db = SessionLocal()
-    try:
-        missing = (
-            db.query(SavedGame.id)
-            .filter(SavedGame.fixture_id.isnot(None))
-            .filter((SavedGame.gender.is_(None)) | (SavedGame.region.is_(None)))
-            .limit(1)
-            .first()
-        )
-        if not missing:
-            return
-
-        _, fixtures = discover_nbl1_fixtures()
-        backfill_nbl1_metadata_from_fixtures(db, fixtures)
-    except Exception:
-        logger.exception("NBL1 metadata backfill failed")
-        db.rollback()
     finally:
         db.close()

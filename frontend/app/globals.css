@@ -1,8 +1,20 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --navy: #1b2838;
+  --navy-mid: #243447;
+  --gold: #f1c40f;
+  --gold-soft: #fff3b0;
+  --cream: #f7f4ea;
+  --card: #ffffff;
+  --text: #1b2838;
+  --muted: #5d6d7e;
+  --grey-header: #4b5563;
+  --grey-row: #f3f4f6;
+  --grey-alt: #e5e7eb;
+  --grey-border: #d1d5db;
+  --background: #f7f4ea;
+  --foreground: #1b2838;
 }
 
 @theme inline {
@@ -12,15 +24,164 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+body {
+  background: var(--cream);
+  color: var(--text);
+  font-family: Arial, Helvetica, sans-serif;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.site-nav {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background: var(--navy);
+  border-bottom: 3px solid var(--gold);
+  font-family: Arial, sans-serif;
+}
+
+.site-nav-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: clamp(8px, 1.5vw, 20px);
+  flex-wrap: wrap;
+  padding: clamp(8px, 1.2vw, 12px) clamp(12px, 2.4vw, 28px);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.site-nav-brand {
+  color: var(--gold);
+  text-decoration: none;
+  font-weight: 800;
+  font-size: clamp(16px, 2.2vw, 22px);
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+  padding: 5px 10px;
+  border-radius: 6px;
+  background: rgba(241, 196, 15, 0.18);
+  box-shadow: inset 0 0 0 1px var(--gold);
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.site-nav-links {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: clamp(2px, 0.5vw, 6px);
+  flex-wrap: wrap;
+  margin-left: auto;
+  flex: 1 1 260px;
+}
+
+.site-nav-link {
+  color: #ecf0f1;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: clamp(10px, 1.05vw, 13px);
+  padding: clamp(4px, 0.55vw, 7px) clamp(6px, 0.8vw, 10px);
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.site-nav-link[aria-current="page"] {
+  color: var(--gold);
+  font-weight: 700;
+  background: rgba(241, 196, 15, 0.14);
+}
+
+.site-nav-lock {
+  margin-left: 4px;
+  padding: clamp(4px, 0.55vw, 7px) clamp(6px, 0.8vw, 10px);
+  background: transparent;
+  color: #c5d0d8;
+  border: 1px solid #4a5a6a;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: clamp(10px, 1vw, 12px);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.upload-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: clamp(10px, 1.6vw, 16px);
+  margin-bottom: 20px;
+}
+
+.upload-box {
+  flex: 1 1 220px;
+  min-width: min(100%, 220px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.upload-box input[type="file"],
+.upload-box textarea,
+.upload-url input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: clamp(44px, 6vw, 56px);
+  padding: clamp(8px, 1.2vw, 12px);
+  border: 2px dashed var(--navy);
+  border-radius: 8px;
+  background: var(--cream);
+  color: var(--text);
+  font-size: clamp(12px, 1.2vw, 14px);
+}
+
+.upload-box textarea {
+  min-height: clamp(140px, 22vw, 200px);
+  font-family: monospace;
+  resize: vertical;
+}
+
+.upload-calculate {
+  flex: 1 1 180px;
+  min-width: min(100%, 180px);
+  align-self: flex-end;
+  min-height: clamp(44px, 6vw, 56px);
+  padding: clamp(10px, 1.4vw, 14px) clamp(14px, 2vw, 22px);
+  background: var(--navy);
+  color: var(--gold);
+  border: 1px solid var(--gold);
+  border-radius: 8px;
+  font-size: clamp(13px, 1.4vw, 16px);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.upload-calculate:disabled {
+  background: var(--grey-alt);
+  color: var(--muted);
+  border-color: var(--grey-border);
+  cursor: not-allowed;
+}
+
+.mode-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.mode-tab {
+  padding: clamp(8px, 1vw, 10px) clamp(12px, 1.6vw, 18px);
+  border: 1px solid var(--grey-border);
+  border-radius: 6px;
+  background: var(--grey-row);
+  color: var(--navy);
+  font-weight: 700;
+  font-size: clamp(12px, 1.2vw, 14px);
+  cursor: pointer;
+}
+
+.mode-tab[aria-pressed="true"] {
+  background: var(--navy);
+  color: var(--gold);
+  border-color: var(--gold);
 }
