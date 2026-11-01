@@ -9,6 +9,7 @@ function createApi(timeout) {
   return axios.create({
     baseURL,
     timeout,
+    withCredentials: true,
   });
 }
 

@@ -11,11 +11,10 @@ from sqlalchemy.orm import Session
 
 from auth_utils import (
     create_access_token,
-    hash_password,
+    get_or_create_site_user,
     is_allowed_login_email,
     is_valid_site_password,
     normalize_email,
-    site_password,
     verify_password,
 )
 from database import get_db, init_db
@@ -89,22 +88,6 @@ def _user_to_response(user: User) -> UserResponse:
     return UserResponse(id=user.id, email=user.email)
 
 
-def _get_or_create_site_user(db: Session) -> User:
-    email = normalize_email(os.getenv("ADMIN_EMAIL", "demo@bouncepass.net"))
-    password = site_password()
-    user = db.query(User).filter(User.email == email).first()
-    if not user:
-        user = User(email=email, password_hash=hash_password(password))
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-        return user
-    if not verify_password(password, user.password_hash):
-        user.password_hash = hash_password(password)
-        db.commit()
-    return user
-
-
 def _owned_team(db: Session, current_user: User, team_id: int) -> Team:
     team = db.query(Team).filter(Team.id == team_id, Team.user_id == current_user.id).first()
     if not team:
@@ -163,7 +146,7 @@ def register(_body: RegisterRequest) -> AuthResponse:
 def site_access(body: AccessRequest, db: Session = Depends(get_db)) -> AuthResponse:
     if not is_valid_site_password(body.password):
         raise HTTPException(status_code=401, detail="Invalid password")
-    user = _get_or_create_site_user(db)
+    user = get_or_create_site_user(db)
     return AuthResponse(access_token=create_access_token(user.id), user=_user_to_response(user))
 
 
@@ -172,7 +155,7 @@ def login(body: LoginRequest, db: Session = Depends(get_db)) -> AuthResponse:
     if is_valid_site_password(body.password) and (
         not body.email or is_allowed_login_email(body.email)
     ):
-        user = _get_or_create_site_user(db)
+        user = get_or_create_site_user(db)
         return AuthResponse(access_token=create_access_token(user.id), user=_user_to_response(user))
     email = normalize_email(body.email)
     if not is_allowed_login_email(email):

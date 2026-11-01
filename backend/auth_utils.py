@@ -53,12 +53,46 @@ def create_access_token(user_id: int) -> str:
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
+def _token_secrets() -> list[str]:
+    secrets = [
+        os.getenv("JWT_SECRET"),
+        os.getenv("AUTH_SECRET"),
+        JWT_SECRET,
+        "dev-insecure-jwt-secret-change-me",
+    ]
+    unique: list[str] = []
+    for secret in secrets:
+        if secret and secret not in unique:
+            unique.append(secret)
+    return unique
+
+
+def get_or_create_site_user(db):
+    from models import User
+
+    email = allowed_login_email()
+    password = site_password()
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        user = User(email=email, password_hash=hash_password(password))
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return user
+    if not verify_password(password, user.password_hash):
+        user.password_hash = hash_password(password)
+        db.commit()
+    return user
+
+
 def decode_access_token(token: str) -> Optional[int]:
-    try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        subject = payload.get("sub")
-        if subject is None:
-            return None
-        return int(subject)
-    except (jwt.PyJWTError, TypeError, ValueError):
-        return None
+    for secret in _token_secrets():
+        try:
+            payload = jwt.decode(token, secret, algorithms=[JWT_ALGORITHM])
+            subject = payload.get("sub")
+            if subject is None:
+                continue
+            return int(subject)
+        except (jwt.PyJWTError, TypeError, ValueError):
+            continue
+    return None

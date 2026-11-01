@@ -20,7 +20,12 @@ export default function Page() {
       await createTeam(newTeamName.trim());
       setNewTeamName("");
     } catch (err: any) {
-      setError(err?.response?.data?.detail || err?.message || "Could not create team.");
+      setError(
+        err?.response?.data?.detail ||
+          err?.response?.data?.error ||
+          err?.message ||
+          "Could not create team.",
+      );
     } finally {
       setCreating(false);
     }

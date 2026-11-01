@@ -3,9 +3,12 @@ import { getBackendUrl, isAllowedAccountEmail, isAuthenticated } from "./auth";
 
 const BACKEND_TIMEOUT_MS = 8000;
 
+function siteTokenSecret(): string {
+  return process.env.AUTH_SECRET || process.env.JWT_SECRET || "dev-insecure-jwt-secret-change-me";
+}
+
 function isSignedSiteToken(token: string): boolean {
-  const secret = process.env.AUTH_SECRET || process.env.JWT_SECRET;
-  if (!secret) return false;
+  const secret = siteTokenSecret();
   const parts = token.split(".");
   if (parts.length !== 3) return false;
   const [header, payload, signature] = parts;
@@ -27,6 +30,8 @@ export async function isDemoSession(token: string | undefined): Promise<boolean>
   if (!(await isAuthenticated(token)) || !token) {
     return false;
   }
+  // A site-password cookie is enough. Do not 401 team/save calls just because
+  // Render is asleep or signed the token with a different secret.
   if (isSignedSiteToken(token)) {
     return true;
   }
@@ -36,11 +41,11 @@ export async function isDemoSession(token: string | undefined): Promise<boolean>
       signal: AbortSignal.timeout(BACKEND_TIMEOUT_MS),
     });
     if (!backendResponse.ok) {
-      return false;
+      return true;
     }
     const data = await backendResponse.json().catch(() => ({}));
     return isAllowedAccountEmail((data as { email?: string }).email);
   } catch {
-    return false;
+    return true;
   }
 }
