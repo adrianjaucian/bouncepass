@@ -57,7 +57,7 @@ export default function UploadDual() {
   return (
     <div>
       <div style={{ marginBottom: "30px" }}>
-        <h2 style={{ color: COLORS.navy, margin: "0 0 20px 0", fontSize: "clamp(1.4em, 2.4vw, 1.8em)" }}>
+        <h2 style={{ color: COLORS.text, margin: "0 0 20px 0", fontSize: "clamp(1.4em, 2.4vw, 1.8em)" }}>
           Upload & Calculate
         </h2>
         <div
@@ -69,7 +69,7 @@ export default function UploadDual() {
             border: `1px solid ${COLORS.gold}`,
           }}
         >
-          <p style={{ margin: 0, color: COLORS.navy, fontSize: "14px" }}>
+          <p style={{ margin: 0, color: COLORS.text, fontSize: "14px" }}>
             Upload or paste CSV box scores for <strong>{teamLabel}</strong>. Advanced stats are calculated here.
             Saving stores this team&apos;s players so their metrics can be tracked over time, whether they played home or away.
           </p>
@@ -109,11 +109,11 @@ export default function UploadDual() {
         {uploadMode === "file" && (
           <div className="upload-row">
             <div className="upload-box">
-              <label style={{ fontWeight: 600, color: COLORS.navy }}>{teamLabel} CSV</label>
+              <label style={{ fontWeight: 600, color: COLORS.text }}>{teamLabel} CSV</label>
               <input type="file" accept=".csv" onChange={(e) => setTeamFile(e.target.files?.[0] || null)} />
             </div>
             <div className="upload-box">
-              <label style={{ fontWeight: 600, color: COLORS.navy }}>Opponent CSV (optional)</label>
+              <label style={{ fontWeight: 600, color: COLORS.text }}>Opponent CSV (optional)</label>
               <input type="file" accept=".csv" onChange={(e) => setOpponentFile(e.target.files?.[0] || null)} />
             </div>
             <button
@@ -130,7 +130,7 @@ export default function UploadDual() {
         {uploadMode === "paste" && (
           <div className="upload-row">
             <div className="upload-box">
-              <label style={{ fontWeight: 600, color: COLORS.navy }}>{teamLabel} CSV</label>
+              <label style={{ fontWeight: 600, color: COLORS.text }}>{teamLabel} CSV</label>
               <textarea
                 value={teamCSV}
                 onChange={(e) => setTeamCSV(e.target.value)}
@@ -138,7 +138,7 @@ export default function UploadDual() {
               />
             </div>
             <div className="upload-box">
-              <label style={{ fontWeight: 600, color: COLORS.navy }}>Opponent CSV (optional)</label>
+              <label style={{ fontWeight: 600, color: COLORS.text }}>Opponent CSV (optional)</label>
               <textarea
                 value={opponentCSV}
                 onChange={(e) => setOpponentCSV(e.target.value)}
@@ -175,7 +175,7 @@ export default function UploadDual() {
       {data && (
         <div>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", marginBottom: "16px" }}>
-            <h3 style={{ color: COLORS.navy, margin: "20px 0 10px 0" }}>
+            <h3 style={{ color: COLORS.text, margin: "20px 0 10px 0" }}>
               Results · {teamLabel} ({teamIsHome ? "Home" : "Away"})
             </h3>
             <ExportResultsButton data={data} homeLabel={homeLabel} awayLabel={awayLabel} />

@@ -61,7 +61,7 @@ export default function SaveGameForm({ results, teamSide = "home", hasOpponent }
 
   return (
     <div style={{ marginTop: "24px", padding: "20px", backgroundColor: COLORS.goldSoft, borderRadius: "8px", border: `1px solid ${COLORS.gold}` }}>
-      <h3 style={{ margin: "0 0 16px 0", color: COLORS.navy }}>
+      <h3 style={{ margin: "0 0 16px 0", color: COLORS.text }}>
         Save to {currentTeam?.name || "this team"}
       </h3>
       <p style={{ margin: "0 0 12px 0", color: COLORS.muted, fontSize: "13px" }}>
@@ -70,23 +70,23 @@ export default function SaveGameForm({ results, teamSide = "home", hasOpponent }
         {hasOpponent ? " The opponent CSV is kept as the other box score." : ""}
       </p>
       <div style={{ display: "grid", gap: "12px", maxWidth: "520px" }}>
-        <label style={{ display: "grid", gap: "6px", color: COLORS.navy, fontSize: "14px" }}>
+        <label style={{ display: "grid", gap: "6px", color: COLORS.text, fontSize: "14px" }}>
           Game Date
           <input
             type="date"
             value={gameDate}
             onChange={(e) => setGameDate(e.target.value)}
-            style={{ padding: "10px 12px", borderRadius: "6px", border: `1px solid ${COLORS.greyBorder}`, color: COLORS.navy }}
+            style={{ padding: "10px 12px", borderRadius: "6px", border: `1px solid ${COLORS.greyBorder}`, color: COLORS.text }}
           />
         </label>
-        <label style={{ display: "grid", gap: "6px", color: COLORS.navy, fontSize: "14px" }}>
+        <label style={{ display: "grid", gap: "6px", color: COLORS.text, fontSize: "14px" }}>
           Opponent (optional)
           <input
             type="text"
             value={opponentName}
             onChange={(e) => setOpponentName(e.target.value)}
             placeholder="e.g. City Hawks"
-            style={{ padding: "10px 12px", borderRadius: "6px", border: `1px solid ${COLORS.greyBorder}`, color: COLORS.navy }}
+            style={{ padding: "10px 12px", borderRadius: "6px", border: `1px solid ${COLORS.greyBorder}`, color: COLORS.text }}
           />
         </label>
         <button

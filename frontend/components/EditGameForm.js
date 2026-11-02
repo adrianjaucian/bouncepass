@@ -42,25 +42,25 @@ export default function EditGameForm({ game, onUpdated, onCancel }) {
 
   return (
     <div style={{ marginTop: "12px", padding: "16px", backgroundColor: COLORS.goldSoft, borderRadius: "8px", border: `1px solid ${COLORS.gold}` }}>
-      <h4 style={{ margin: "0 0 12px 0", color: COLORS.navy }}>Edit Game Details</h4>
+      <h4 style={{ margin: "0 0 12px 0", color: COLORS.text }}>Edit Game Details</h4>
       <div style={{ display: "grid", gap: "12px", maxWidth: "520px" }}>
-        <label style={{ display: "grid", gap: "6px", color: COLORS.navy, fontSize: "14px" }}>
+        <label style={{ display: "grid", gap: "6px", color: COLORS.text, fontSize: "14px" }}>
           Game Date
           <input
             type="date"
             value={gameDate}
             onChange={(e) => setGameDate(e.target.value)}
-            style={{ padding: "10px 12px", borderRadius: "6px", border: `1px solid ${COLORS.greyBorder}`, color: COLORS.navy }}
+            style={{ padding: "10px 12px", borderRadius: "6px", border: `1px solid ${COLORS.greyBorder}`, color: COLORS.text }}
           />
         </label>
-        <label style={{ display: "grid", gap: "6px", color: COLORS.navy, fontSize: "14px" }}>
+        <label style={{ display: "grid", gap: "6px", color: COLORS.text, fontSize: "14px" }}>
           Opponent
           <input
             type="text"
             value={opponentName}
             onChange={(e) => setOpponentName(e.target.value)}
             placeholder="Opponent name"
-            style={{ padding: "10px 12px", borderRadius: "6px", border: `1px solid ${COLORS.greyBorder}`, color: COLORS.navy }}
+            style={{ padding: "10px 12px", borderRadius: "6px", border: `1px solid ${COLORS.greyBorder}`, color: COLORS.text }}
           />
         </label>
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
@@ -86,7 +86,7 @@ export default function EditGameForm({ game, onUpdated, onCancel }) {
               style={{
                 padding: "10px 18px",
                 backgroundColor: COLORS.greyRow,
-                color: COLORS.navy,
+                color: COLORS.text,
                 border: `1px solid ${COLORS.greyBorder}`,
                 borderRadius: "6px",
                 cursor: saving ? "not-allowed" : "pointer",

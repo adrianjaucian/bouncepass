@@ -1,5 +1,6 @@
 export const DEFAULT_PRIMARY = "#1b2838";
 export const DEFAULT_SECONDARY = "#f1c40f";
+export const BODY_TEXT = "#000000";
 
 export const COLORS = {
   navy: "var(--navy)",
@@ -107,9 +108,9 @@ export function applyTeamTheme(primary, secondary) {
     "--gold-ink": theme.goldInk,
     "--gold-rgb": theme.goldRgb,
     "--cream": theme.cream,
-    "--text": theme.navy,
+    "--text": BODY_TEXT,
     "--background": theme.cream,
-    "--foreground": theme.navy,
+    "--foreground": BODY_TEXT,
     "--nav-fg": theme.navFg,
     "--nav-muted": theme.navMuted,
   };
@@ -152,7 +153,7 @@ export const pageMain = {
 };
 
 export const titleStyle = {
-  color: COLORS.navy,
+  color: COLORS.text,
   margin: "0 0 10px 0",
 };
 

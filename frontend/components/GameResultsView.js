@@ -120,7 +120,7 @@ function ResultsTable({ rows }) {
                   textAlign: "center",
                   fontWeight: "bold",
                   backgroundColor: COLORS.gold,
-                  color: COLORS.navy,
+                  color: COLORS.text,
                 }}
               >
                 {col.label}
@@ -167,7 +167,7 @@ function ResultsTable({ rows }) {
                     style={{
                       padding: "8px 4px",
                       textAlign: "center",
-                      color: COLORS.navy,
+                      color: COLORS.text,
                       backgroundColor: advancedBg,
                       fontWeight: 600,
                     }}
@@ -219,7 +219,7 @@ function TeamSummary({ totals, title }) {
 
   return (
     <div style={{ marginTop: "12px", marginBottom: "20px" }}>
-      <h4 style={{ margin: "8px 0", color: COLORS.navy }}>{title} — Team Totals</h4>
+      <h4 style={{ margin: "8px 0", color: COLORS.text }}>{title} — Team Totals</h4>
       <div style={{ overflowX: "auto", maxWidth: "100%" }}>
         <table
           style={{

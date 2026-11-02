@@ -35,7 +35,7 @@ export default function DemoAccountBanner() {
       style={{
         backgroundColor: "var(--gold-soft)",
         borderBottom: "1px solid var(--gold)",
-        color: "var(--navy)",
+        color: "var(--text)",
         fontFamily: "Arial, sans-serif",
         fontSize: "14px",
         lineHeight: 1.5,

@@ -11,7 +11,7 @@
   --gold-rgb: 241, 196, 15;
   --cream: #f7f4ea;
   --card: #ffffff;
-  --text: #1b2838;
+  --text: #000000;
   --muted: #5d6d7e;
   --grey-header: #4b5563;
   --grey-row: #f3f4f6;
@@ -20,7 +20,7 @@
   --nav-fg: #f7f4ea;
   --nav-muted: #c5d0d8;
   --background: #f7f4ea;
-  --foreground: #1b2838;
+  --foreground: #000000;
 }
 
 @theme inline {
@@ -202,7 +202,7 @@ body {
   border: 1px solid var(--grey-border);
   border-radius: 6px;
   background: var(--grey-row);
-  color: var(--navy);
+  color: var(--text);
   font-weight: 700;
   font-size: clamp(12px, 1.2vw, 14px);
   cursor: pointer;
@@ -223,7 +223,7 @@ body {
   background: #fff;
   border: 1px solid var(--navy);
   border-radius: 8px;
-  color: var(--navy);
+  color: var(--text);
   font-size: 14px;
   cursor: pointer;
   width: fit-content;
@@ -255,7 +255,7 @@ body {
 .chart-control {
   display: grid;
   gap: 6px;
-  color: var(--navy);
+  color: var(--text);
   font-size: 13px;
   font-weight: 700;
 }
@@ -266,7 +266,7 @@ body {
   border: 1px solid var(--navy);
   border-radius: 6px;
   background: var(--cream);
-  color: var(--navy);
+  color: var(--text);
   font-weight: 600;
 }
 
@@ -279,7 +279,7 @@ body {
 
 .chart-latest strong {
   display: block;
-  color: var(--navy);
+  color: var(--text);
   font-size: 1.4em;
 }
 
@@ -294,7 +294,7 @@ body {
   border: 1px solid var(--grey-border);
   border-radius: 6px;
   background: var(--grey-row);
-  color: var(--navy);
+  color: var(--text);
   font-weight: 700;
   font-size: 12px;
   cursor: pointer;
@@ -337,7 +337,7 @@ body {
 .team-color-field {
   display: grid;
   gap: 6px;
-  color: var(--navy);
+  color: var(--text);
   font-weight: 600;
   font-size: 14px;
 }

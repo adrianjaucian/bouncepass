@@ -112,7 +112,7 @@ export default function TeamDashboardPage() {
           {!currentTeam && !teamLoading && (
             <p style={{ color: COLORS.muted }}>
               No team selected.{" "}
-              <Link href="/" style={{ color: COLORS.navy, fontWeight: 700 }}>
+              <Link href="/" style={{ color: COLORS.text, fontWeight: 700 }}>
                 Add a team
               </Link>{" "}
               first.
@@ -127,7 +127,7 @@ export default function TeamDashboardPage() {
           {dashboard && !loading && (
             <>
               <div style={{ marginBottom: "28px" }}>
-                <h2 style={{ margin: "0 0 8px 0", color: COLORS.navy, fontSize: "2em" }}>{dashboard.team_name}</h2>
+                <h2 style={{ margin: "0 0 8px 0", color: COLORS.text, fontSize: "2em" }}>{dashboard.team_name}</h2>
                 <p style={{ margin: 0, color: COLORS.muted }}>
                   {dashboard.games_played} saved game{dashboard.games_played === 1 ? "" : "s"} · Record{" "}
                   {dashboard.record.wins}-{dashboard.record.losses}
@@ -135,12 +135,12 @@ export default function TeamDashboardPage() {
               </div>
 
               <section style={{ marginBottom: "32px" }}>
-                <h3 style={{ margin: "0 0 16px 0", color: COLORS.navy }}>Trend</h3>
+                <h3 style={{ margin: "0 0 16px 0", color: COLORS.text }}>Trend</h3>
                 <TeamMetricChart series={dashboard.metric_series || []} />
               </section>
 
               <section style={{ marginBottom: "32px" }}>
-                <h3 style={{ margin: "0 0 16px 0", color: COLORS.navy }}>Players</h3>
+                <h3 style={{ margin: "0 0 16px 0", color: COLORS.text }}>Players</h3>
                 {dashboard.players.length === 0 ? (
                   <p style={{ color: COLORS.muted }}>Save a box score to store this team&apos;s players.</p>
                 ) : (
@@ -149,7 +149,7 @@ export default function TeamDashboardPage() {
                       <thead>
                         <tr style={{ backgroundColor: COLORS.goldSoft }}>
                           {["Player", "G", "PTS", "REB", "AST", "TS%", "USG%", "ORtg", "BPM"].map((label) => (
-                            <th key={label} style={{ padding: "10px", color: COLORS.navy, textAlign: label === "Player" ? "left" : "center" }}>
+                            <th key={label} style={{ padding: "10px", color: COLORS.text, textAlign: label === "Player" ? "left" : "center" }}>
                               {label}
                             </th>
                           ))}
@@ -161,7 +161,7 @@ export default function TeamDashboardPage() {
                             <td style={{ padding: "10px" }}>
                               <Link
                                 href={`/player-dashboard?player=${encodeURIComponent(player.player)}`}
-                                style={{ color: COLORS.navy, fontWeight: 600, textDecoration: "none" }}
+                                style={{ color: COLORS.text, fontWeight: 600, textDecoration: "none" }}
                               >
                                 {player.player}
                               </Link>
@@ -183,7 +183,7 @@ export default function TeamDashboardPage() {
               </section>
 
               <section>
-                <h3 style={{ margin: "0 0 16px 0", color: COLORS.navy }}>Games</h3>
+                <h3 style={{ margin: "0 0 16px 0", color: COLORS.text }}>Games</h3>
                 {dashboard.games.length === 0 ? (
                   <p style={{ color: COLORS.muted }}>No saved games yet.</p>
                 ) : (
@@ -191,11 +191,11 @@ export default function TeamDashboardPage() {
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px", border: `1px solid ${COLORS.greyBorder}` }}>
                       <thead>
                         <tr style={{ backgroundColor: COLORS.greyRow }}>
-                          <th style={{ padding: "10px", textAlign: "left", color: COLORS.navy }}>Date</th>
-                          <th style={{ padding: "10px", textAlign: "left", color: COLORS.navy }}>Opponent</th>
-                          <th style={{ padding: "10px", textAlign: "center", color: COLORS.navy }}>Side</th>
-                          <th style={{ padding: "10px", textAlign: "center", color: COLORS.navy }}>Result</th>
-                          <th style={{ padding: "10px", textAlign: "left", color: COLORS.navy }}>Box score</th>
+                          <th style={{ padding: "10px", textAlign: "left", color: COLORS.text }}>Date</th>
+                          <th style={{ padding: "10px", textAlign: "left", color: COLORS.text }}>Opponent</th>
+                          <th style={{ padding: "10px", textAlign: "center", color: COLORS.text }}>Side</th>
+                          <th style={{ padding: "10px", textAlign: "center", color: COLORS.text }}>Result</th>
+                          <th style={{ padding: "10px", textAlign: "left", color: COLORS.text }}>Box score</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -230,7 +230,7 @@ export default function TeamDashboardPage() {
                                 {result}
                               </td>
                               <td style={{ padding: "10px" }}>
-                                <Link href={`/saved-games/${game.id}`} style={{ color: COLORS.navy, fontWeight: 500 }}>
+                                <Link href={`/saved-games/${game.id}`} style={{ color: COLORS.text, fontWeight: 500 }}>
                                   View game
                                 </Link>
                               </td>

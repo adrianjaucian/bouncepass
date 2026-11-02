@@ -50,7 +50,7 @@ export default function Page() {
 
         <main style={pageMain}>
           <section style={{ marginBottom: "28px" }}>
-            <h2 style={{ color: COLORS.navy, margin: "0 0 12px 0" }}>
+            <h2 style={{ color: COLORS.text, margin: "0 0 12px 0" }}>
               {teams.length ? "Current team" : "Start with your team name"}
             </h2>
             {loading && <p style={{ color: COLORS.muted }}>Loading teams...</p>}
@@ -70,7 +70,7 @@ export default function Page() {
                         borderRadius: "8px",
                         border: `1px solid ${selected ? secondary : COLORS.greyBorder}`,
                         background: selected ? primary : COLORS.greyRow,
-                        color: selected ? secondary : COLORS.navy,
+                        color: selected ? secondary : COLORS.text,
                         fontWeight: 700,
                         cursor: "pointer",
                       }}
@@ -93,7 +93,7 @@ export default function Page() {
               Choose a primary and secondary colour. The whole site uses that pair while the team is selected.
             </p>
             <form onSubmit={handleCreate} className="team-create-form">
-              <label style={{ display: "grid", gap: "6px", color: COLORS.navy, fontWeight: 600 }}>
+              <label style={{ display: "grid", gap: "6px", color: COLORS.text, fontWeight: 600 }}>
                 {teams.length ? "Add another team" : "Team name"}
                 <input
                   value={newTeamName}
@@ -104,7 +104,7 @@ export default function Page() {
                     borderRadius: "8px",
                     border: `1px solid ${COLORS.greyBorder}`,
                     minWidth: "240px",
-                    color: COLORS.navy,
+                    color: COLORS.text,
                   }}
                 />
               </label>

@@ -39,8 +39,8 @@ function PlayerStatCard({ label, value, subtitle, kind, gameKey, games }) {
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
       >
-        <div style={{ color: COLORS.goldInk, fontSize: "13px", marginBottom: "6px" }}>{label}</div>
-        <div style={{ color: COLORS.navy, fontSize: "1.6em", fontWeight: "bold", lineHeight: 1.1 }}>{value}</div>
+        <div style={{ color: COLORS.text, fontSize: "13px", marginBottom: "6px" }}>{label}</div>
+        <div style={{ color: COLORS.text, fontSize: "1.6em", fontWeight: "bold", lineHeight: 1.1 }}>{value}</div>
         {subtitle && <div style={{ color: COLORS.muted, fontSize: "12px", marginTop: "4px" }}>{subtitle}</div>}
         <div style={{ color: COLORS.muted, fontSize: "11px", marginTop: "8px", fontWeight: 700 }}>
           {open ? "Hide trend" : "Show trend"}
@@ -75,7 +75,7 @@ function PlayerStatCard({ label, value, subtitle, kind, gameKey, games }) {
 
 const tableHeaderStyle = {
   padding: "10px",
-  color: COLORS.navy,
+  color: COLORS.text,
   fontWeight: "bold",
 };
 
@@ -87,7 +87,7 @@ export default function PlayerDashboardDetail({ dashboard }) {
   return (
     <>
       <div style={{ marginBottom: "28px" }}>
-        <h2 style={{ margin: "0 0 8px 0", color: COLORS.navy, fontSize: "2.2em" }}>{dashboard.player_name}</h2>
+        <h2 style={{ margin: "0 0 8px 0", color: COLORS.text, fontSize: "2.2em" }}>{dashboard.player_name}</h2>
         <p style={{ margin: 0, color: COLORS.muted }}>
           {dashboard.team_name} · {dashboard.games_played} game{dashboard.games_played === 1 ? "" : "s"}
           {stats.mp_mins != null ? ` · ${Number(stats.mp_mins).toFixed(1)} min` : ""}
@@ -95,7 +95,7 @@ export default function PlayerDashboardDetail({ dashboard }) {
       </div>
 
       <section style={{ marginBottom: "32px" }}>
-        <h3 style={{ margin: "0 0 16px 0", color: COLORS.navy }}>Season Totals</h3>
+        <h3 style={{ margin: "0 0 16px 0", color: COLORS.text }}>Season Totals</h3>
         <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
           <PlayerStatCard label="PTS" value={String(stats.pts ?? 0)} kind="count" gameKey="pts" games={games} />
           <PlayerStatCard label="REB" value={String(stats.trb ?? 0)} kind="count" gameKey="trb" games={games} />
@@ -113,7 +113,7 @@ export default function PlayerDashboardDetail({ dashboard }) {
       </section>
 
       <section style={{ marginBottom: "32px" }}>
-        <h3 style={{ margin: "0 0 16px 0", color: COLORS.navy }}>Per Game</h3>
+        <h3 style={{ margin: "0 0 16px 0", color: COLORS.text }}>Per Game</h3>
         <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
           <PlayerStatCard label="PTS/G" value={formatRating(stats.pts_pg)} kind="count" gameKey="pts" games={games} />
           <PlayerStatCard label="REB/G" value={formatRating(stats.trb_pg)} kind="count" gameKey="trb" games={games} />
@@ -122,7 +122,7 @@ export default function PlayerDashboardDetail({ dashboard }) {
       </section>
 
       <section style={{ marginBottom: "32px" }}>
-        <h3 style={{ margin: "0 0 16px 0", color: COLORS.navy }}>Advanced Metrics</h3>
+        <h3 style={{ margin: "0 0 16px 0", color: COLORS.text }}>Advanced Metrics</h3>
         <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
           <PlayerStatCard label="TS%" value={formatPercent(stats.ts_pct)} kind="pct01" gameKey="ts_pct" games={games} />
           <PlayerStatCard label="eFG%" value={formatPercent(stats.efg_pct)} kind="pct01" gameKey="efg_pct" games={games} />
@@ -140,7 +140,7 @@ export default function PlayerDashboardDetail({ dashboard }) {
       </section>
 
       <section>
-        <h3 style={{ margin: "0 0 16px 0", color: COLORS.navy }}>Game Log</h3>
+        <h3 style={{ margin: "0 0 16px 0", color: COLORS.text }}>Game Log</h3>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px", border: `1px solid ${COLORS.greyBorder}` }}>
             <thead>
@@ -172,7 +172,7 @@ export default function PlayerDashboardDetail({ dashboard }) {
                   </td>
                   <td style={{ padding: "10px", textAlign: "center" }}>{formatRating(game.ortg)}</td>
                   <td style={{ padding: "10px" }}>
-                    <Link href={`/saved-games/${game.game_id}`} style={{ color: COLORS.navy }}>
+                    <Link href={`/saved-games/${game.game_id}`} style={{ color: COLORS.text }}>
                       View game
                     </Link>
                   </td>

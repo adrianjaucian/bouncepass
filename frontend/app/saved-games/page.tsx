@@ -120,7 +120,7 @@ export default function SavedGamesPage() {
           {!currentTeam && !teamLoading && (
             <p style={{ color: COLORS.muted }}>
               No team selected.{" "}
-              <Link href="/" style={{ color: COLORS.navy, fontWeight: 700 }}>
+              <Link href="/" style={{ color: COLORS.text, fontWeight: 700 }}>
                 Add a team
               </Link>{" "}
               to track box scores.
@@ -130,7 +130,7 @@ export default function SavedGamesPage() {
           {currentTeam && !loading && !error && total === 0 && (
             <p style={{ color: COLORS.muted }}>
               No games saved for {currentTeam.name} yet. Upload a box score on{" "}
-              <Link href="/" style={{ color: COLORS.navy }}>
+              <Link href="/" style={{ color: COLORS.text }}>
                 Home
               </Link>{" "}
               and save it here.
@@ -155,7 +155,7 @@ export default function SavedGamesPage() {
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
                       <div>
-                        <div style={{ fontWeight: "bold", color: COLORS.navy, fontSize: "16px" }}>
+                        <div style={{ fontWeight: "bold", color: COLORS.text, fontSize: "16px" }}>
                           {formatSavedGameLabel({
                             homeTeamName: game.home_team_name,
                             awayTeamName: game.away_team_name ?? null,

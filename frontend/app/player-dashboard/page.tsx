@@ -121,7 +121,7 @@ function PlayerDashboardContent() {
           {!currentTeam && !teamLoading && (
             <p style={{ color: COLORS.muted }}>
               No team selected.{" "}
-              <Link href="/" style={{ color: COLORS.navy, fontWeight: 700 }}>
+              <Link href="/" style={{ color: COLORS.text, fontWeight: 700 }}>
                 Add a team
               </Link>{" "}
               first.
@@ -130,7 +130,7 @@ function PlayerDashboardContent() {
 
           {currentTeam && (
             <div style={{ marginBottom: "24px", maxWidth: "360px" }}>
-              <label htmlFor="player-select" style={{ display: "block", marginBottom: "8px", color: COLORS.navy, fontWeight: "bold" }}>
+              <label htmlFor="player-select" style={{ display: "block", marginBottom: "8px", color: COLORS.text, fontWeight: "bold" }}>
                 Player
               </label>
               <select
@@ -143,7 +143,7 @@ function PlayerDashboardContent() {
                   borderRadius: "8px",
                   border: `1px solid ${COLORS.greyBorder}`,
                   fontSize: "14px",
-                  color: COLORS.navy,
+                  color: COLORS.text,
                   backgroundColor: "#fff",
                 }}
               >

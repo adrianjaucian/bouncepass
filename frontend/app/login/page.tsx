@@ -58,7 +58,7 @@ function SitePasswordForm() {
             boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
           }}
         >
-          <h1 style={{ color: "var(--navy)", margin: "0 0 8px 0", fontSize: "1.8em", textAlign: "center" }}>
+          <h1 style={{ color: "var(--text)", margin: "0 0 8px 0", fontSize: "1.8em", textAlign: "center" }}>
             Bounce PASS
           </h1>
           <p style={{ color: "#5d6d7e", margin: "0 0 24px 0", textAlign: "center" }}>
