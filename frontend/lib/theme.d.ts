@@ -1,5 +1,12 @@
 import type { CSSProperties } from "react";
 
+export const DEFAULT_PRIMARY: string;
+export const DEFAULT_SECONDARY: string;
+export function normalizeHex(value: string | null | undefined, fallback?: string): string;
+export function buildTheme(primary?: string | null, secondary?: string | null): Record<string, string>;
+export function applyTeamTheme(primary?: string | null, secondary?: string | null): void;
+export function resetTeamTheme(): void;
+
 export const COLORS: {
   navy: string;
   navyMid: string;

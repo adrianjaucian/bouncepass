@@ -135,6 +135,8 @@ def _team_summary(db: Session, team: Team) -> TeamSummary:
         game_count=game_count,
         player_count=player_count,
         created_at=team.created_at.isoformat(),
+        primary_color=team.primary_color,
+        secondary_color=team.secondary_color,
     )
 
 
@@ -194,7 +196,12 @@ def create_team(
     )
     if existing:
         raise HTTPException(status_code=409, detail="A team with that name already exists")
-    team = Team(user_id=current_user.id, name=name)
+    team = Team(
+        user_id=current_user.id,
+        name=name,
+        primary_color=(body.primary_color or "").strip() or None,
+        secondary_color=(body.secondary_color or "").strip() or None,
+    )
     db.add(team)
     db.commit()
     db.refresh(team)

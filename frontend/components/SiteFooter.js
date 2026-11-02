@@ -1,28 +1,13 @@
 import { BUG_REPORT_MAILTO, CONTACT_MAILTO } from "../lib/contact";
 
-const linkStyle = {
-  color: "#fff3b0",
-  textDecoration: "none",
-  fontSize: "13px",
-};
-
 export default function SiteFooter() {
   return (
-    <footer
-      style={{
-        marginTop: "auto",
-        padding: "16px 20px",
-        textAlign: "center",
-        fontFamily: "Arial, sans-serif",
-        borderTop: "3px solid #f1c40f",
-        backgroundColor: "#1b2838",
-      }}
-    >
+    <footer className="site-footer">
       <nav aria-label="Support links" style={{ display: "flex", justifyContent: "center", gap: "20px", flexWrap: "wrap" }}>
-        <a href={CONTACT_MAILTO} style={linkStyle}>
+        <a href={CONTACT_MAILTO}>
           Contact us
         </a>
-        <a href={BUG_REPORT_MAILTO} style={linkStyle}>
+        <a href={BUG_REPORT_MAILTO}>
           Report a bug
         </a>
       </nav>

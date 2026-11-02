@@ -33,9 +33,9 @@ export default function DemoAccountBanner() {
     <div
       role="status"
       style={{
-        backgroundColor: "#fff3b0",
-        borderBottom: "1px solid #f1c40f",
-        color: "#1b2838",
+        backgroundColor: "var(--gold-soft)",
+        borderBottom: "1px solid var(--gold)",
+        color: "var(--navy)",
         fontFamily: "Arial, sans-serif",
         fontSize: "14px",
         lineHeight: 1.5,

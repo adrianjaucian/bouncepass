@@ -6,6 +6,8 @@ export type WorkspaceTeam = {
   game_count: number;
   player_count: number;
   created_at?: string;
+  primary_color?: string | null;
+  secondary_color?: string | null;
 };
 
 export type TeamContextValue = {
@@ -15,7 +17,10 @@ export type TeamContextValue = {
   loading: boolean;
   error: string;
   selectTeam: (id: number) => void;
-  createTeam: (name: string) => Promise<WorkspaceTeam>;
+  createTeam: (
+    name: string,
+    colors?: { primary_color?: string; secondary_color?: string },
+  ) => Promise<WorkspaceTeam>;
   reloadTeams: () => Promise<void>;
 };
 

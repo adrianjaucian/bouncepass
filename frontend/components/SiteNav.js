@@ -40,13 +40,7 @@ export default function SiteNav() {
               aria-label="Current team"
               value={currentTeam.id}
               onChange={(event) => selectTeam(Number(event.target.value))}
-              className="site-nav-link"
-              style={{
-                background: "#243447",
-                color: "#f1c40f",
-                border: "1px solid #f1c40f",
-                maxWidth: "180px",
-              }}
+              className="site-nav-link site-nav-team"
             >
               {teams.map((team) => (
                 <option key={team.id} value={team.id}>

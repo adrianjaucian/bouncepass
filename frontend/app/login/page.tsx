@@ -41,7 +41,7 @@ function SitePasswordForm() {
     <div
       style={{
         minHeight: "100vh",
-        backgroundColor: "#f7f4ea",
+        backgroundColor: "var(--cream)",
         fontFamily: "Arial, sans-serif",
         padding: "40px 20px",
       }}
@@ -58,7 +58,7 @@ function SitePasswordForm() {
             boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
           }}
         >
-          <h1 style={{ color: "#1b2838", margin: "0 0 8px 0", fontSize: "1.8em", textAlign: "center" }}>
+          <h1 style={{ color: "var(--navy)", margin: "0 0 8px 0", fontSize: "1.8em", textAlign: "center" }}>
             Bounce PASS
           </h1>
           <p style={{ color: "#5d6d7e", margin: "0 0 24px 0", textAlign: "center" }}>
@@ -86,9 +86,9 @@ function SitePasswordForm() {
               disabled={loading || !password}
               style={{
                 padding: "14px 24px",
-                backgroundColor: loading || !password ? "#e5e7eb" : "#1b2838",
-                border: loading || !password ? "1px solid #d1d5db" : "1px solid #f1c40f",
-                color: loading || !password ? "#5d6d7e" : "#f1c40f",
+                backgroundColor: loading || !password ? "#e5e7eb" : "var(--navy)",
+                border: loading || !password ? "1px solid #d1d5db" : "1px solid var(--gold)",
+                color: loading || !password ? "#5d6d7e" : "var(--gold)",
                 borderRadius: "8px",
                 cursor: loading || !password ? "not-allowed" : "pointer",
                 fontWeight: "bold",

@@ -29,6 +29,8 @@ class AuthResponse(BaseModel):
 
 class TeamCreateRequest(BaseModel):
     name: str = Field(..., min_length=1)
+    primary_color: Optional[str] = None
+    secondary_color: Optional[str] = None
 
 
 class TeamSummary(BaseModel):
@@ -37,6 +39,8 @@ class TeamSummary(BaseModel):
     game_count: int = 0
     player_count: int = 0
     created_at: str
+    primary_color: Optional[str] = None
+    secondary_color: Optional[str] = None
 
 
 class TeamListResponse(BaseModel):

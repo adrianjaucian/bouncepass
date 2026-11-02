@@ -60,10 +60,10 @@ export default function SavedGameDetailPage() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#f7f4ea", fontFamily: "Arial, sans-serif" }}>
+    <div style={{ minHeight: "100vh", backgroundColor: "var(--cream)", fontFamily: "Arial, sans-serif" }}>
       <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "40px 20px" }}>
         <header style={{ textAlign: "center", marginBottom: "24px", backgroundColor: "#fff", padding: "30px", borderRadius: "10px", boxShadow: "0 2px 10px rgba(0,0,0,0.1)" }}>
-          <h1 style={{ color: "#1b2838", margin: "0 0 10px 0", fontSize: "2.2em" }}>
+          <h1 style={{ color: "var(--navy)", margin: "0 0 10px 0", fontSize: "2.2em" }}>
             {game
               ? formatSavedGameLabel({
                   homeTeamName: game.home_team_name,
@@ -91,7 +91,7 @@ export default function SavedGameDetailPage() {
           {game && (
             <>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", marginBottom: "16px", flexWrap: "wrap" }}>
-                <h3 style={{ color: "#1b2838", margin: "20px 0 10px 0" }}>Results</h3>
+                <h3 style={{ color: "var(--navy)", margin: "20px 0 10px 0" }}>Results</h3>
                 <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
                   <button
                     onClick={() => setEditing((current) => !current)}
@@ -133,7 +133,7 @@ export default function SavedGameDetailPage() {
           )}
           {!loading && !error && (
             <div style={{ marginTop: "24px" }}>
-              <Link href="/saved-games" style={{ color: "#1b2838", fontWeight: "bold" }}>
+              <Link href="/saved-games" style={{ color: "var(--navy)", fontWeight: "bold" }}>
                 ← Back to Advanced Box Scores
               </Link>
             </div>

@@ -77,15 +77,15 @@ export function listLocalTeams() {
   return state.teams.map((team) => {
     const games = state.games.filter((game) => game.team_id === team.id);
     const players = state.players.filter((player) => player.team_id === team.id);
-    return {
+    return withTeamColors({
       ...team,
       game_count: games.length,
       player_count: players.length,
-    };
+    });
   });
 }
 
-export function createLocalTeam(name) {
+export function createLocalTeam(name, colors = {}) {
   const trimmed = name.trim();
   if (!trimmed) throw new Error("Team name is required");
   const state = readState();
@@ -94,13 +94,55 @@ export function createLocalTeam(name) {
   const team = {
     id: nextId(state),
     name: trimmed,
+    primary_color: colors.primary_color || null,
+    secondary_color: colors.secondary_color || null,
     created_at: new Date().toISOString(),
     game_count: 0,
     player_count: 0,
   };
   state.teams.push(team);
   writeState(state);
+  rememberTeamColors(team);
   return team;
+}
+
+const COLOR_MAP_KEY = "bounce_team_colors_v1";
+
+function readColorMap() {
+  if (typeof window === "undefined") return { byId: {}, byName: {} };
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(COLOR_MAP_KEY) || "");
+    return {
+      byId: parsed?.byId || {},
+      byName: parsed?.byName || {},
+    };
+  } catch {
+    return { byId: {}, byName: {} };
+  }
+}
+
+export function rememberTeamColors(team) {
+  if (typeof window === "undefined" || !team) return team;
+  const map = readColorMap();
+  const colors = {
+    primary_color: team.primary_color || null,
+    secondary_color: team.secondary_color || null,
+  };
+  if (team.id != null) map.byId[String(team.id)] = colors;
+  if (team.name) map.byName[String(team.name).toLowerCase()] = colors;
+  window.localStorage.setItem(COLOR_MAP_KEY, JSON.stringify(map));
+  return team;
+}
+
+export function withTeamColors(team) {
+  if (!team) return team;
+  const map = readColorMap();
+  const stored = map.byId[String(team.id)] || map.byName[String(team.name || "").toLowerCase()] || {};
+  return {
+    ...team,
+    primary_color: team.primary_color || stored.primary_color || null,
+    secondary_color: team.secondary_color || stored.secondary_color || null,
+  };
 }
 
 export function listLocalGames(teamId) {

@@ -69,6 +69,16 @@ def _migrate_team_columns():
         if "team_id" not in existing:
             with engine.begin() as connection:
                 connection.execute(text("ALTER TABLE saved_games ADD COLUMN team_id INTEGER"))
+    if "teams" in tables:
+        existing = {column["name"] for column in inspector.get_columns("teams")}
+        additions = {
+            "primary_color": "VARCHAR",
+            "secondary_color": "VARCHAR",
+        }
+        with engine.begin() as connection:
+            for column_name, column_type in additions.items():
+                if column_name not in existing:
+                    connection.execute(text(f"ALTER TABLE teams ADD COLUMN {column_name} {column_type}"))
 
 
 def init_db():
