@@ -1,11 +1,11 @@
 import { useState } from "react";
 import api from "../lib/api";
 import { COLORS } from "../lib/theme";
-import { isUnavailableStatus, updateLocalGame } from "../lib/workspaceStore";
+import { getGameOpponent, isUnavailableStatus, updateLocalGame } from "../lib/workspaceStore";
 
 export default function EditGameForm({ game, onUpdated, onCancel }) {
   const [gameDate, setGameDate] = useState(game.game_date || "");
-  const [opponentName, setOpponentName] = useState(game.away_team_name || "");
+  const [opponentName, setOpponentName] = useState(getGameOpponent(game) || "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 

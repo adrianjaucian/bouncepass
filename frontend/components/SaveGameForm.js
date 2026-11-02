@@ -5,7 +5,7 @@ import { COLORS } from "../lib/theme";
 import { isUnavailableStatus, saveLocalGame } from "../lib/workspaceStore";
 import { useTeam } from "./TeamProvider";
 
-export default function SaveGameForm({ results, hasAwayTeam }) {
+export default function SaveGameForm({ results, teamSide = "home", hasOpponent }) {
   const { currentTeam, reloadTeams } = useTeam();
   const today = new Date().toISOString().slice(0, 10);
   const [gameDate, setGameDate] = useState(today);
@@ -32,10 +32,11 @@ export default function SaveGameForm({ results, hasAwayTeam }) {
       team_id: currentTeam.id,
       game_date: gameDate,
       opponent_name: opponentName.trim() || null,
-      results,
+      team_side: teamSide === "away" ? "away" : "home",
+      results: { ...(results || {}), team_side: teamSide === "away" ? "away" : "home" },
     };
     try {
-      const res = await api.post("/games", payload);
+      const res = await api.post("/games", payload, { timeout: 8000 });
       setSavedGameId(res.data.id);
       setMessage(`Saved to ${currentTeam.name}.`);
       await reloadTeams();
@@ -64,8 +65,9 @@ export default function SaveGameForm({ results, hasAwayTeam }) {
         Save to {currentTeam?.name || "this team"}
       </h3>
       <p style={{ margin: "0 0 12px 0", color: COLORS.muted, fontSize: "13px" }}>
-        Players from the home CSV are stored on this team so their metrics can be tracked over time.
-        {hasAwayTeam ? " The away CSV is kept as the opponent box score." : ""}
+        {currentTeam?.name || "This team"} is saved as the {teamSide === "away" ? "away" : "home"} team for this game.
+        Metrics still track {currentTeam?.name || "this team"} only.
+        {hasOpponent ? " The opponent CSV is kept as the other box score." : ""}
       </p>
       <div style={{ display: "grid", gap: "12px", maxWidth: "520px" }}>
         <label style={{ display: "grid", gap: "6px", color: COLORS.navy, fontSize: "14px" }}>

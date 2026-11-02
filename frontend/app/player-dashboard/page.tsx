@@ -51,7 +51,7 @@ function PlayerDashboardContent() {
         return;
       }
       try {
-        const res = await api.get(`/teams/${currentTeam.id}/players`);
+        const res = await api.get(`/teams/${currentTeam.id}/players`, { timeout: 8000 });
         setPlayers(res.data?.players || []);
       } catch (err: any) {
         setPlayers(isUnavailableStatus(err?.response?.status) || !err?.response ? listLocalPlayers(currentTeam.id) : []);
@@ -72,6 +72,7 @@ function PlayerDashboardContent() {
       try {
         const res = await api.get("/players/dashboard", {
           params: { team_id: currentTeam.id, player_name: selectedPlayer.trim() },
+          timeout: 8000,
         });
         setDashboard(res.data);
       } catch (err: any) {

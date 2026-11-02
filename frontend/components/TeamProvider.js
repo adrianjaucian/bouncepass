@@ -28,7 +28,7 @@ export function TeamProvider({ children }) {
     setLoading(true);
     setError("");
     try {
-      const res = await api.get("/teams");
+      const res = await api.get("/teams", { timeout: 8000 });
       const remote = res.data?.teams || [];
       applyTeams(remote.length ? remote : listLocalTeams());
     } catch (err) {
@@ -56,13 +56,13 @@ export function TeamProvider({ children }) {
 
   const createTeam = async (name) => {
     try {
-      const res = await api.post("/teams", { name: name.trim() });
+      const res = await api.post("/teams", { name: name.trim() }, { timeout: 8000 });
       const team = res.data;
       setTeams((current) => [...current, team]);
       setCurrentTeamId(team.id);
       return team;
     } catch (err) {
-      if (!isUnavailableStatus(err?.response?.status) && err?.response?.status !== 404) {
+      if (err?.response && !isUnavailableStatus(err.response.status) && err.response.status !== 404) {
         throw err;
       }
       const team = createLocalTeam(name);

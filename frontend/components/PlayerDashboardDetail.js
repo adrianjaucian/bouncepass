@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo, useState } from "react";
 import { COLORS } from "../lib/theme";
+import { formatMetricValue, shortGameDate, windowGameLog } from "../lib/metricOptions";
+import MetricLineChart from "./MetricLineChart";
 
 function formatPercent(value) {
   return value == null ? "—" : `${(value * 100).toFixed(1)}%`;
@@ -11,21 +14,61 @@ function formatRating(value) {
   return value == null ? "—" : Number(value).toFixed(1);
 }
 
-function StatCard({ label, value, subtitle }) {
+const PLAYER_WINDOWS = [
+  { id: "last5", label: "Last 5 games" },
+  { id: "last10", label: "Last 10 games" },
+  { id: "season", label: "Season" },
+];
+
+function PlayerStatCard({ label, value, subtitle, kind, gameKey, games }) {
+  const [open, setOpen] = useState(false);
+  const [windowId, setWindowId] = useState("last5");
+  const points = useMemo(() => {
+    return windowGameLog(games, windowId).map((game) => ({
+      label: shortGameDate(game.game_date),
+      opponent: game.opponent,
+      value: Number(game[gameKey] ?? 0),
+    }));
+  }, [games, gameKey, windowId]);
+
   return (
-    <div
-      style={{
-        flex: "1 1 160px",
-        backgroundColor: COLORS.goldSoft,
-        border: `1px solid ${COLORS.gold}`,
-        borderRadius: "10px",
-        padding: "16px",
-        textAlign: "center",
-      }}
-    >
-      <div style={{ color: COLORS.goldInk, fontSize: "13px", marginBottom: "6px" }}>{label}</div>
-      <div style={{ color: COLORS.navy, fontSize: "1.6em", fontWeight: "bold", lineHeight: 1.1 }}>{value}</div>
-      {subtitle && <div style={{ color: COLORS.muted, fontSize: "12px", marginTop: "4px" }}>{subtitle}</div>}
+    <div className="stat-card-wrap" data-expanded={open ? "true" : "false"}>
+      <button
+        type="button"
+        className="stat-card-button"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <div style={{ color: COLORS.goldInk, fontSize: "13px", marginBottom: "6px" }}>{label}</div>
+        <div style={{ color: COLORS.navy, fontSize: "1.6em", fontWeight: "bold", lineHeight: 1.1 }}>{value}</div>
+        {subtitle && <div style={{ color: COLORS.muted, fontSize: "12px", marginTop: "4px" }}>{subtitle}</div>}
+        <div style={{ color: COLORS.muted, fontSize: "11px", marginTop: "8px", fontWeight: 700 }}>
+          {open ? "Hide trend" : "Show trend"}
+        </div>
+      </button>
+      {open && (
+        <div className="stat-card-chart">
+          <div className="window-tabs" role="group" aria-label={`${label} trend window`}>
+            {PLAYER_WINDOWS.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                className="window-tab"
+                aria-pressed={windowId === option.id}
+                onClick={() => setWindowId(option.id)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <MetricLineChart points={points} kind={kind} height={180} />
+          {points.length > 0 && (
+            <p style={{ margin: "0 0 4px 0", color: COLORS.muted, fontSize: "12px" }}>
+              Latest: {formatMetricValue(points[points.length - 1].value, kind)}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -38,6 +81,7 @@ const tableHeaderStyle = {
 
 export default function PlayerDashboardDetail({ dashboard }) {
   const stats = dashboard?.stats;
+  const games = dashboard?.games || [];
   if (!dashboard || !stats) return null;
 
   return (
@@ -53,33 +97,45 @@ export default function PlayerDashboardDetail({ dashboard }) {
       <section style={{ marginBottom: "32px" }}>
         <h3 style={{ margin: "0 0 16px 0", color: COLORS.navy }}>Season Totals</h3>
         <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-          <StatCard label="PTS" value={String(stats.pts ?? 0)} />
-          <StatCard label="REB" value={String(stats.trb ?? 0)} />
-          <StatCard label="AST" value={String(stats.ast ?? 0)} />
-          <StatCard label="STL" value={String(stats.stl ?? 0)} />
-          <StatCard label="BLK" value={String(stats.blk ?? 0)} />
-          <StatCard label="MP" value={stats.mp_mins == null ? "—" : Number(stats.mp_mins).toFixed(1)} />
+          <PlayerStatCard label="PTS" value={String(stats.pts ?? 0)} kind="count" gameKey="pts" games={games} />
+          <PlayerStatCard label="REB" value={String(stats.trb ?? 0)} kind="count" gameKey="trb" games={games} />
+          <PlayerStatCard label="AST" value={String(stats.ast ?? 0)} kind="count" gameKey="ast" games={games} />
+          <PlayerStatCard label="STL" value={String(stats.stl ?? 0)} kind="count" gameKey="stl" games={games} />
+          <PlayerStatCard label="BLK" value={String(stats.blk ?? 0)} kind="count" gameKey="blk" games={games} />
+          <PlayerStatCard
+            label="MP"
+            value={stats.mp_mins == null ? "—" : Number(stats.mp_mins).toFixed(1)}
+            kind="count"
+            gameKey="mp_mins"
+            games={games}
+          />
         </div>
       </section>
 
       <section style={{ marginBottom: "32px" }}>
         <h3 style={{ margin: "0 0 16px 0", color: COLORS.navy }}>Per Game</h3>
         <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-          <StatCard label="PTS/G" value={formatRating(stats.pts_pg)} />
-          <StatCard label="REB/G" value={formatRating(stats.trb_pg)} />
-          <StatCard label="AST/G" value={formatRating(stats.ast_pg)} />
+          <PlayerStatCard label="PTS/G" value={formatRating(stats.pts_pg)} kind="count" gameKey="pts" games={games} />
+          <PlayerStatCard label="REB/G" value={formatRating(stats.trb_pg)} kind="count" gameKey="trb" games={games} />
+          <PlayerStatCard label="AST/G" value={formatRating(stats.ast_pg)} kind="count" gameKey="ast" games={games} />
         </div>
       </section>
 
       <section style={{ marginBottom: "32px" }}>
         <h3 style={{ margin: "0 0 16px 0", color: COLORS.navy }}>Advanced Metrics</h3>
         <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-          <StatCard label="TS%" value={formatPercent(stats.ts_pct)} />
-          <StatCard label="eFG%" value={formatPercent(stats.efg_pct)} />
-          <StatCard label="USG%" value={stats.usg_pct == null ? "—" : `${Number(stats.usg_pct).toFixed(1)}%`} />
-          <StatCard label="ORtg" value={formatRating(stats.ortg)} />
-          <StatCard label="DRtg" value={formatRating(stats.drtg)} />
-          <StatCard label="BPM" value={formatRating(stats.bpm)} />
+          <PlayerStatCard label="TS%" value={formatPercent(stats.ts_pct)} kind="pct01" gameKey="ts_pct" games={games} />
+          <PlayerStatCard label="eFG%" value={formatPercent(stats.efg_pct)} kind="pct01" gameKey="efg_pct" games={games} />
+          <PlayerStatCard
+            label="USG%"
+            value={stats.usg_pct == null ? "—" : `${Number(stats.usg_pct).toFixed(1)}%`}
+            kind="pct100"
+            gameKey="usg_pct"
+            games={games}
+          />
+          <PlayerStatCard label="ORtg" value={formatRating(stats.ortg)} kind="rating" gameKey="ortg" games={games} />
+          <PlayerStatCard label="DRtg" value={formatRating(stats.drtg)} kind="rating" gameKey="drtg" games={games} />
+          <PlayerStatCard label="BPM" value={formatRating(stats.bpm)} kind="rating" gameKey="bpm" games={games} />
         </div>
       </section>
 
@@ -102,7 +158,7 @@ export default function PlayerDashboardDetail({ dashboard }) {
               </tr>
             </thead>
             <tbody>
-              {(dashboard.games || []).map((game, index) => (
+              {games.map((game, index) => (
                 <tr key={`${game.game_id}-${index}`} style={{ backgroundColor: index % 2 === 0 ? "#fff" : COLORS.greyRow }}>
                   <td style={{ padding: "10px" }}>{game.game_date}</td>
                   <td style={{ padding: "10px" }}>{game.opponent || "—"}</td>

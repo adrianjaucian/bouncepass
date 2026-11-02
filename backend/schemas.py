@@ -47,6 +47,7 @@ class GameSaveRequest(BaseModel):
     team_id: int
     game_date: str = Field(..., min_length=1)
     opponent_name: Optional[str] = None
+    team_side: Optional[str] = None
     results: Dict[str, Any]
 
 
@@ -114,8 +115,9 @@ class TeamDashboardGame(BaseModel):
     id: int
     game_date: str
     opponent: Optional[str] = None
-    team_score: Optional[int] = None
-    opponent_score: Optional[int] = None
+    team_score: Optional[float] = None
+    opponent_score: Optional[float] = None
+    team_side: Optional[str] = None
 
 
 class TeamDashboardResponse(BaseModel):
@@ -126,6 +128,7 @@ class TeamDashboardResponse(BaseModel):
     totals: Dict[str, Any]
     players: List[TeamDashboardPlayer]
     games: List[TeamDashboardGame]
+    metric_series: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class PlayerDashboardResponse(BaseModel):

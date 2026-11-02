@@ -45,6 +45,7 @@ from team_analytics import (
     build_team_analytics,
     collect_team_players_from_results,
     normalize_name,
+    team_side_from_results,
 )
 
 load_dotenv()
@@ -270,31 +271,37 @@ def save_game(
 ) -> GameDetail:
     team = _owned_team(db, current_user, game_in.team_id)
     opponent = (game_in.opponent_name or "").strip() or None
-    existing = (
+    results = dict(game_in.results or {})
+    side = team_side_from_results(results, game_in.team_side)
+    results["team_side"] = side
+    existing_games = (
         db.query(SavedGame)
-        .filter(
-            SavedGame.team_id == team.id,
-            SavedGame.game_date == game_in.game_date.strip(),
-            func.lower(func.coalesce(SavedGame.away_team_name, "")) == (opponent or "").lower(),
-        )
-        .first()
+        .filter(SavedGame.team_id == team.id, SavedGame.game_date == game_in.game_date.strip())
+        .all()
     )
-    if existing:
-        raise HTTPException(status_code=409, detail="This game is already saved for the team")
+    for existing in existing_games:
+        try:
+            existing_results = json.loads(existing.results_json) if existing.results_json else {}
+        except json.JSONDecodeError:
+            existing_results = {}
+        existing_side = team_side_from_results(existing_results)
+        existing_opponent = existing.home_team_name if existing_side == "away" else existing.away_team_name
+        if str(existing_opponent or "").lower() == str(opponent or "").lower():
+            raise HTTPException(status_code=409, detail="This game is already saved for the team")
 
-    home_score, away_score = scores_from_results(game_in.results)
+    home_score, away_score = scores_from_results(results)
     record = SavedGame(
         user_id=current_user.id,
         team_id=team.id,
         game_date=game_in.game_date.strip(),
-        home_team_name=team.name,
-        away_team_name=opponent,
-        results_json=json.dumps(game_in.results),
+        home_team_name=(opponent or "Opponent") if side == "away" else team.name,
+        away_team_name=team.name if side == "away" else opponent,
+        results_json=json.dumps(results),
         home_score=home_score,
         away_score=away_score,
     )
     db.add(record)
-    _upsert_players(db, team, game_in.results)
+    _upsert_players(db, team, results)
     db.commit()
     db.refresh(record)
     return _game_to_detail(record)
@@ -352,7 +359,12 @@ def update_game(
     if not game:
         raise HTTPException(status_code=404, detail="Game not found")
     game.game_date = body.game_date.strip()
-    game.away_team_name = (body.opponent_name or "").strip() or None
+    opponent = (body.opponent_name or "").strip() or None
+    results = json.loads(game.results_json) if game.results_json else {}
+    if team_side_from_results(results) == "away":
+        game.home_team_name = opponent or "Opponent"
+    else:
+        game.away_team_name = opponent
     db.commit()
     db.refresh(game)
     return _game_to_detail(game)

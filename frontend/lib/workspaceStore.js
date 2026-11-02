@@ -46,10 +46,23 @@ function scoresFromResults(results) {
   return { home_score: home, away_score: away };
 }
 
-function collectHomePlayers(results) {
+export function getTeamSide(game, results = game?.results) {
+  const raw = game?.team_side || results?.team_side || "home";
+  return String(raw).toLowerCase() === "away" ? "away" : "home";
+}
+
+export function getGameOpponent(game, results = game?.results) {
+  return getTeamSide(game, results) === "away" ? game?.home_team_name || null : game?.away_team_name || null;
+}
+
+function teamRowsFromResults(results, side) {
+  return filterPlayerRows(results?.[side] || []);
+}
+
+function collectTeamPlayers(results, side = getTeamSide({ results }, results)) {
   const names = [];
   const seen = new Set();
-  filterPlayerRows(results?.home || []).forEach((row, index) => {
+  teamRowsFromResults(results, side).forEach((row, index) => {
     const name = String(getRowPlayerName(row) || `Player ${index + 1}`).trim();
     const key = normalizeName(name);
     if (!key || seen.has(key)) return;
@@ -107,7 +120,11 @@ export function updateLocalGame(gameId, { game_date, opponent_name }) {
   const game = state.games.find((item) => String(item.id) === String(gameId));
   if (!game) throw new Error("Game not found");
   game.game_date = game_date;
-  game.away_team_name = opponent_name || null;
+  if (getTeamSide(game) === "away") {
+    game.home_team_name = opponent_name || "Opponent";
+  } else {
+    game.away_team_name = opponent_name || null;
+  }
   writeState(state);
   return game;
 }
@@ -118,32 +135,35 @@ export function deleteLocalGame(gameId) {
   writeState(state);
 }
 
-export function saveLocalGame({ team_id, game_date, opponent_name, results }) {
+export function saveLocalGame({ team_id, game_date, opponent_name, results, team_side }) {
   const state = readState();
   const team = state.teams.find((item) => item.id === team_id);
   if (!team) throw new Error("Create or select a team before saving.");
   const opponent = (opponent_name || "").trim() || null;
+  const side = getTeamSide({ team_side, results }, results);
+  const storedResults = { ...(results || {}), team_side: side };
   const duplicate = state.games.find(
     (game) =>
       game.team_id === team_id &&
       game.game_date === game_date &&
-      String(game.away_team_name || "").toLowerCase() === String(opponent || "").toLowerCase(),
+      String(getGameOpponent(game) || "").toLowerCase() === String(opponent || "").toLowerCase(),
   );
   if (duplicate) throw new Error("This game is already saved for the team");
-  const scores = scoresFromResults(results);
+  const scores = scoresFromResults(storedResults);
   const record = {
     id: nextId(state),
     team_id,
+    team_side: side,
     game_date,
-    home_team_name: team.name,
-    away_team_name: opponent,
+    home_team_name: side === "away" ? opponent || "Opponent" : team.name,
+    away_team_name: side === "away" ? team.name : opponent,
     home_score: scores.home_score,
     away_score: scores.away_score,
-    results,
+    results: storedResults,
     created_at: new Date().toISOString(),
   };
   state.games.push(record);
-  collectHomePlayers(results).forEach((name) => {
+  collectTeamPlayers(storedResults, side).forEach((name) => {
     const exists = state.players.some(
       (player) => player.team_id === team_id && normalizeName(player.name) === normalizeName(name),
     );
@@ -213,16 +233,82 @@ function addPlayerRow(bucket, row, game) {
   bucket.game_log.push({
     game_id: game.id,
     game_date: game.game_date,
-    opponent: game.away_team_name,
+    opponent: getGameOpponent(game),
+    team_side: getTeamSide(game),
     pts,
     trb: number(row, ["TRB", "REB"]),
     ast: number(row, ["AST"]),
+    stl: number(row, ["STL"]),
+    blk: number(row, ["BLK"]),
     mp_mins: mpMins,
     ts_pct: number(row, ["TS%"]),
-    usg_pct: number(row, ["USG%"]),
+    efg_pct: number(row, ["eFG%"]),
+    usg_pct: (() => {
+      const usg = number(row, ["USG%"]);
+      return usg > 0 && usg <= 1 ? usg * 100 : usg;
+    })(),
     ortg: number(row, ["ORtg"]),
+    drtg: number(row, ["DRtg"]),
     bpm: number(row, ["BPM"]),
   });
+}
+
+function teamGameSnapshot(game) {
+  const side = getTeamSide(game);
+  const results = game.results || {};
+  const teamRows = teamRowsFromResults(results, side);
+  const oppRows = teamRowsFromResults(results, side === "home" ? "away" : "home");
+  const totals = computeTeamTotals(teamRows);
+  const oppTotals = computeTeamTotals(oppRows);
+  const teamScore = side === "home" ? game.home_score : game.away_score;
+  const oppScore = side === "home" ? game.away_score : game.home_score;
+  let weight = 0;
+  let ts = 0;
+  let efg = 0;
+  let usg = 0;
+  let ortg = 0;
+  let drtg = 0;
+  let bpm = 0;
+  teamRows.forEach((row) => {
+    const gameWeight = parseMinutes(row) || 1;
+    weight += gameWeight;
+    ts += number(row, ["TS%"]) * gameWeight;
+    efg += number(row, ["eFG%"]) * gameWeight;
+    usg += number(row, ["USG%"]) * gameWeight;
+    ortg += number(row, ["ORtg"]) * gameWeight;
+    drtg += number(row, ["DRtg"]) * gameWeight;
+    bpm += number(row, ["BPM"]) * gameWeight;
+  });
+  const usgValue = weight ? usg / weight : 0;
+  return {
+    id: game.id,
+    game_date: game.game_date,
+    opponent: getGameOpponent(game),
+    team_side: side,
+    pts: teamScore != null ? teamScore : totals.PTS,
+    opp_pts: oppScore != null ? oppScore : oppTotals.PTS,
+    trb: totals.TRB,
+    ast: totals.AST,
+    stl: totals.STL,
+    blk: totals.BLK,
+    tov: totals.TOV,
+    mp_mins: totals.MP_mins,
+    fg: totals.FG,
+    fga: totals.FGA,
+    fg3: totals["3P"],
+    fg3a: totals["3PA"],
+    ft: totals.FT,
+    fta: totals.FTA,
+    fg_pct: totals["FG%"],
+    fg3_pct: totals["3P%"],
+    ft_pct: totals["FT%"],
+    ts_pct: weight ? ts / weight : 0,
+    efg_pct: weight ? efg / weight : 0,
+    usg_pct: usgValue <= 1 ? usgValue * 100 : usgValue,
+    ortg: weight ? ortg / weight : 0,
+    drtg: weight ? drtg / weight : 0,
+    bpm: weight ? bpm / weight : 0,
+  };
 }
 
 function finalizePlayer(bucket) {
@@ -285,17 +371,17 @@ export function buildLocalTeamAnalytics(teamId) {
   let losses = 0;
   const totals = { pts: 0, opp_pts: 0, trb: 0, ast: 0 };
 
+  const metricSeries = [];
   games.forEach((game) => {
-    const homeRows = filterPlayerRows(game.results?.home || []);
-    const homePts = game.home_score != null ? game.home_score : homeRows.reduce((sum, row) => sum + number(row, ["PTS"]), 0);
-    const awayPts = game.away_score;
-    if (homePts != null && awayPts != null) {
-      if (homePts > awayPts) wins += 1;
-      else if (homePts < awayPts) losses += 1;
+    const snapshot = teamGameSnapshot(game);
+    const teamRows = teamRowsFromResults(game.results, snapshot.team_side);
+    if (snapshot.pts != null && snapshot.opp_pts != null) {
+      if (snapshot.pts > snapshot.opp_pts) wins += 1;
+      else if (snapshot.pts < snapshot.opp_pts) losses += 1;
     }
-    totals.pts += homePts || 0;
-    totals.opp_pts += awayPts || 0;
-    homeRows.forEach((row, index) => {
+    totals.pts += snapshot.pts || 0;
+    totals.opp_pts += snapshot.opp_pts || 0;
+    teamRows.forEach((row, index) => {
       const name = String(getRowPlayerName(row) || `Player ${index + 1}`).trim();
       const key = normalizeName(name);
       if (!players[key]) players[key] = emptyPlayer(name);
@@ -303,12 +389,14 @@ export function buildLocalTeamAnalytics(teamId) {
       totals.trb += number(row, ["TRB", "REB"]);
       totals.ast += number(row, ["AST"]);
     });
+    metricSeries.push(snapshot);
     gameRows.push({
       id: game.id,
       game_date: game.game_date,
-      opponent: game.away_team_name,
-      team_score: homePts,
-      opponent_score: awayPts,
+      opponent: snapshot.opponent,
+      team_score: snapshot.pts,
+      opponent_score: snapshot.opp_pts,
+      team_side: snapshot.team_side,
     });
   });
 
@@ -319,6 +407,7 @@ export function buildLocalTeamAnalytics(teamId) {
   });
   finalized.sort((a, b) => b.pts - a.pts || a.player.localeCompare(b.player));
   gameRows.sort((a, b) => String(b.game_date).localeCompare(String(a.game_date)));
+  metricSeries.sort((a, b) => String(a.game_date).localeCompare(String(b.game_date)));
   return {
     team_id: team.id,
     team_name: team.name,
@@ -327,6 +416,7 @@ export function buildLocalTeamAnalytics(teamId) {
     totals,
     players: finalized,
     games: gameRows,
+    metric_series: metricSeries,
   };
 }
 
@@ -340,7 +430,7 @@ export function buildLocalPlayerAnalytics(teamId, playerName) {
   state.games
     .filter((game) => game.team_id === teamId)
     .forEach((game) => {
-      filterPlayerRows(game.results?.home || []).forEach((row, index) => {
+      teamRowsFromResults(game.results, getTeamSide(game)).forEach((row, index) => {
         const name = String(getRowPlayerName(row) || `Player ${index + 1}`).trim();
         if (normalizeName(name) !== target) return;
         matched = true;

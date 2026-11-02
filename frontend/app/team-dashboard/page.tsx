@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import TeamMetricChart from "../../components/TeamMetricChart";
 import { useTeam } from "../../components/TeamProvider";
 import api from "../../lib/api";
 import { buildLocalTeamAnalytics, isUnavailableStatus } from "../../lib/workspaceStore";
@@ -40,7 +41,9 @@ type TeamDashboard = {
     opponent?: string | null;
     team_score?: number | null;
     opponent_score?: number | null;
+    team_side?: string | null;
   }[];
+  metric_series?: Record<string, any>[];
 };
 
 function formatRating(value?: number | null) {
@@ -49,24 +52,6 @@ function formatRating(value?: number | null) {
 
 function formatPercent(value?: number | null) {
   return value == null ? "—" : `${(value * 100).toFixed(1)}%`;
-}
-
-function MetricCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div
-      style={{
-        flex: "1 1 160px",
-        backgroundColor: COLORS.goldSoft,
-        border: `1px solid ${COLORS.gold}`,
-        borderRadius: "10px",
-        padding: "18px",
-        textAlign: "center",
-      }}
-    >
-      <div style={{ color: COLORS.goldInk, fontSize: "13px", marginBottom: "8px" }}>{label}</div>
-      <div style={{ color: COLORS.navy, fontSize: "2em", fontWeight: "bold" }}>{value}</div>
-    </div>
-  );
 }
 
 export default function TeamDashboardPage() {
@@ -85,8 +70,12 @@ export default function TeamDashboardPage() {
       setLoading(true);
       setError("");
       try {
-        const res = await api.get(`/teams/${currentTeam.id}/dashboard`);
-        setDashboard(res.data);
+        const res = await api.get(`/teams/${currentTeam.id}/dashboard`, { timeout: 8000 });
+        const local = buildLocalTeamAnalytics(currentTeam.id);
+        setDashboard({
+          ...res.data,
+          metric_series: res.data.metric_series?.length ? res.data.metric_series : local?.metric_series || [],
+        });
       } catch (err: any) {
         const local = buildLocalTeamAnalytics(currentTeam.id);
         if (local && (isUnavailableStatus(err?.response?.status) || !err?.response || err?.response?.status === 404)) {
@@ -146,12 +135,8 @@ export default function TeamDashboardPage() {
               </div>
 
               <section style={{ marginBottom: "32px" }}>
-                <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
-                  <MetricCard label="Points" value={String(Math.round(dashboard.totals.pts || 0))} />
-                  <MetricCard label="Opponent points" value={String(Math.round(dashboard.totals.opp_pts || 0))} />
-                  <MetricCard label="Rebounds" value={String(Math.round(dashboard.totals.trb || 0))} />
-                  <MetricCard label="Assists" value={String(Math.round(dashboard.totals.ast || 0))} />
-                </div>
+                <h3 style={{ margin: "0 0 16px 0", color: COLORS.navy }}>Trend</h3>
+                <TeamMetricChart series={dashboard.metric_series || []} />
               </section>
 
               <section style={{ marginBottom: "32px" }}>
@@ -208,6 +193,7 @@ export default function TeamDashboardPage() {
                         <tr style={{ backgroundColor: COLORS.greyRow }}>
                           <th style={{ padding: "10px", textAlign: "left", color: COLORS.navy }}>Date</th>
                           <th style={{ padding: "10px", textAlign: "left", color: COLORS.navy }}>Opponent</th>
+                          <th style={{ padding: "10px", textAlign: "center", color: COLORS.navy }}>Side</th>
                           <th style={{ padding: "10px", textAlign: "center", color: COLORS.navy }}>Result</th>
                           <th style={{ padding: "10px", textAlign: "left", color: COLORS.navy }}>Box score</th>
                         </tr>
@@ -230,6 +216,9 @@ export default function TeamDashboardPage() {
                             <tr key={game.id} style={{ backgroundColor: index % 2 === 0 ? "#fff" : COLORS.greyRow }}>
                               <td style={{ padding: "10px" }}>{game.game_date}</td>
                               <td style={{ padding: "10px" }}>{game.opponent || "—"}</td>
+                              <td style={{ padding: "10px", textAlign: "center", textTransform: "capitalize" }}>
+                                {game.team_side === "away" ? "Away" : "Home"}
+                              </td>
                               <td
                                 style={{
                                   padding: "10px",

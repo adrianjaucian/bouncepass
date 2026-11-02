@@ -68,7 +68,13 @@ def empty_player(name: str) -> Dict[str, Any]:
     }
 
 
-def add_player_row(bucket: Dict[str, Any], row: Dict[str, Any], game: Any) -> None:
+def add_player_row(
+    bucket: Dict[str, Any],
+    row: Dict[str, Any],
+    game: Any,
+    opponent: Optional[str] = None,
+    team_side: str = "home",
+) -> None:
     mp_mins = parse_mp_to_minutes(row.get("MP") or row.get("MP_mins") or 0)
     pts = number(row, "PTS", "pts")
     bucket["games"] += 1
@@ -92,18 +98,26 @@ def add_player_row(bucket: Dict[str, Any], row: Dict[str, Any], game: Any) -> No
     bucket["ortg_weighted"] += number(row, "ORtg") * weight
     bucket["drtg_weighted"] += number(row, "DRtg") * weight
     bucket["bpm_weighted"] += number(row, "BPM") * weight
+    usg_pct = number(row, "USG%")
+    if 0 < usg_pct <= 1:
+        usg_pct *= 100
     bucket["game_log"].append(
         {
             "game_id": game.id,
             "game_date": game.game_date,
-            "opponent": game.away_team_name,
+            "opponent": opponent,
+            "team_side": team_side,
             "pts": pts,
             "trb": number(row, "TRB", "REB"),
             "ast": number(row, "AST"),
+            "stl": number(row, "STL"),
+            "blk": number(row, "BLK"),
             "mp_mins": mp_mins,
             "ts_pct": number(row, "TS%"),
-            "usg_pct": number(row, "USG%"),
+            "efg_pct": number(row, "eFG%"),
+            "usg_pct": usg_pct,
             "ortg": number(row, "ORtg"),
+            "drtg": number(row, "DRtg"),
             "bpm": number(row, "BPM"),
         }
     )
@@ -139,10 +153,23 @@ def finalize_player(bucket: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def team_side_from_results(results: Optional[Dict[str, Any]] = None, explicit: Optional[str] = None) -> str:
+    raw = explicit or (results or {}).get("team_side") or "home"
+    return "away" if str(raw).lower() == "away" else "home"
+
+
+def opponent_from_game(game: Any, results: Optional[Dict[str, Any]] = None) -> Optional[str]:
+    side = team_side_from_results(results, getattr(game, "team_side", None))
+    if side == "away":
+        return game.home_team_name
+    return game.away_team_name
+
+
 def collect_team_players_from_results(results: Dict[str, Any]) -> List[str]:
     names: List[str] = []
     seen = set()
-    for index, row in enumerate(player_rows(results.get("home"))):
+    side = team_side_from_results(results)
+    for index, row in enumerate(player_rows(results.get(side))):
         name = get_player_name(row, index).strip()
         key = normalize_name(name)
         if not key or key in seen:
@@ -152,40 +179,114 @@ def collect_team_players_from_results(results: Dict[str, Any]) -> List[str]:
     return names
 
 
+def team_game_snapshot(game: Any, results: Dict[str, Any]) -> Dict[str, Any]:
+    side = team_side_from_results(results)
+    team_list = player_rows(results.get(side))
+    opp_list = player_rows(results.get("away" if side == "home" else "home"))
+    team_pts = game.home_score if side == "home" else game.away_score
+    opp_pts = game.away_score if side == "home" else game.home_score
+    if team_pts is None:
+        team_pts = sum(number(row, "PTS") for row in team_list)
+    if opp_pts is None:
+        opp_pts = sum(number(row, "PTS") for row in opp_list) or None
+    fg = sum(number(row, "FG", "FGM") for row in team_list)
+    fga = sum(number(row, "FGA") for row in team_list)
+    fg3 = sum(number(row, "3P", "3PM") for row in team_list)
+    fg3a = sum(number(row, "3PA") for row in team_list)
+    ft = sum(number(row, "FT", "FTM") for row in team_list)
+    fta = sum(number(row, "FTA") for row in team_list)
+    trb = sum(number(row, "TRB", "REB") for row in team_list)
+    ast = sum(number(row, "AST") for row in team_list)
+    stl = sum(number(row, "STL") for row in team_list)
+    blk = sum(number(row, "BLK") for row in team_list)
+    tov = sum(number(row, "TOV", "TO") for row in team_list)
+    weight = 0.0
+    ts = efg = usg = ortg = drtg = bpm = 0.0
+    mp_mins = 0.0
+    for row in team_list:
+        mins = parse_mp_to_minutes(row.get("MP") or row.get("MP_mins") or 0)
+        game_weight = mins or 1
+        mp_mins += mins
+        weight += game_weight
+        ts += number(row, "TS%") * game_weight
+        efg += number(row, "eFG%") * game_weight
+        usg += number(row, "USG%") * game_weight
+        ortg += number(row, "ORtg") * game_weight
+        drtg += number(row, "DRtg") * game_weight
+        bpm += number(row, "BPM") * game_weight
+    usg_value = (usg / weight) if weight else 0.0
+    if usg_value <= 1:
+        usg_value *= 100
+    return {
+        "id": game.id,
+        "game_date": game.game_date,
+        "opponent": opponent_from_game(game, results),
+        "team_side": side,
+        "pts": team_pts or 0,
+        "opp_pts": opp_pts or 0,
+        "trb": trb,
+        "ast": ast,
+        "stl": stl,
+        "blk": blk,
+        "tov": tov,
+        "mp_mins": mp_mins,
+        "fg": fg,
+        "fga": fga,
+        "fg3": fg3,
+        "fg3a": fg3a,
+        "ft": ft,
+        "fta": fta,
+        "fg_pct": (fg / fga) if fga else 0,
+        "fg3_pct": (fg3 / fg3a) if fg3a else 0,
+        "ft_pct": (ft / fta) if fta else 0,
+        "ts_pct": (ts / weight) if weight else 0,
+        "efg_pct": (efg / weight) if weight else 0,
+        "usg_pct": usg_value,
+        "ortg": (ortg / weight) if weight else 0,
+        "drtg": (drtg / weight) if weight else 0,
+        "bpm": (bpm / weight) if weight else 0,
+    }
+
+
 def build_team_analytics(team, games: List[Any]) -> Dict[str, Any]:
     players: Dict[str, Dict[str, Any]] = {}
     game_rows: List[Dict[str, Any]] = []
+    metric_series: List[Dict[str, Any]] = []
     wins = 0
     losses = 0
     totals = {"pts": 0.0, "opp_pts": 0.0, "trb": 0.0, "ast": 0.0}
 
     for game in games:
         results = parse_results(game.results_json)
-        home_rows = player_rows(results.get("home"))
-        home_pts = game.home_score if game.home_score is not None else sum(number(row, "PTS") for row in home_rows)
-        away_pts = game.away_score
-        if home_pts is not None and away_pts is not None:
-            if home_pts > away_pts:
+        snapshot = team_game_snapshot(game, results)
+        side = snapshot["team_side"]
+        team_list = player_rows(results.get(side))
+        team_pts = snapshot["pts"]
+        opp_pts = snapshot["opp_pts"]
+        if team_pts is not None and opp_pts is not None:
+            if team_pts > opp_pts:
                 wins += 1
-            elif home_pts < away_pts:
+            elif team_pts < opp_pts:
                 losses += 1
-        totals["pts"] += home_pts or 0
-        totals["opp_pts"] += away_pts or 0
-        for index, row in enumerate(home_rows):
+        totals["pts"] += team_pts or 0
+        totals["opp_pts"] += opp_pts or 0
+        for index, row in enumerate(team_list):
             name = get_player_name(row, index)
             key = normalize_name(name)
             if key not in players:
                 players[key] = empty_player(name)
-            add_player_row(players[key], row, game)
+            add_player_row(players[key], row, game, snapshot["opponent"], side)
             totals["trb"] += number(row, "TRB", "REB")
             totals["ast"] += number(row, "AST")
+        metric_series.append(snapshot)
         game_rows.append(
             {
                 "id": game.id,
                 "game_date": game.game_date,
-                "opponent": game.away_team_name,
-                "team_score": home_pts,
-                "opponent_score": away_pts,
+                "opponent": snapshot["opponent"],
+                "team_score": team_pts,
+                "opponent_score": opp_pts,
+                "team_side": side,
             }
         )
 
@@ -196,6 +297,7 @@ def build_team_analytics(team, games: List[Any]) -> Dict[str, Any]:
         finalized.append(player)
     finalized.sort(key=lambda item: (-item["pts"], item["player"]))
     game_rows.sort(key=lambda item: item["game_date"] or "", reverse=True)
+    metric_series.sort(key=lambda item: item["game_date"] or "")
     return {
         "team_id": team.id,
         "team_name": team.name,
@@ -204,6 +306,7 @@ def build_team_analytics(team, games: List[Any]) -> Dict[str, Any]:
         "totals": totals,
         "players": finalized,
         "games": game_rows,
+        "metric_series": metric_series,
     }
 
 
@@ -215,13 +318,15 @@ def build_player_analytics(team, games: List[Any], player_name: str) -> Optional
     matched = False
     for game in games:
         results = parse_results(game.results_json)
-        for index, row in enumerate(player_rows(results.get("home"))):
+        side = team_side_from_results(results)
+        opponent = opponent_from_game(game, results)
+        for index, row in enumerate(player_rows(results.get(side))):
             name = get_player_name(row, index)
             if normalize_name(name) != target:
                 continue
             matched = True
             bucket["player"] = name
-            add_player_row(bucket, row, game)
+            add_player_row(bucket, row, game, opponent, side)
     if not matched:
         return None
     stats = finalize_player(bucket)

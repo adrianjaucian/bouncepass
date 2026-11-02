@@ -35,9 +35,9 @@ export default function Page() {
     <div style={pageShell}>
       <div style={pageInner}>
         <header style={pageHeader}>
-          <h1 style={{ ...titleStyle, fontSize: "clamp(1.6em, 3vw, 2.2em)" }}>Your team workspace</h1>
+          <h1 style={{ ...titleStyle, fontSize: "clamp(1.6em, 3vw, 2.2em)" }}>Player Analytics Systems and Storage</h1>
           <p style={subtitleStyle}>
-            Create a team, upload CSV box scores, calculate advanced stats, and save them to that team only.
+            Create a team, upload CSV box scores, calculate advanced stats, and bounce the results..
           </p>
         </header>
 
@@ -79,7 +79,7 @@ export default function Page() {
                 <input
                   value={newTeamName}
                   onChange={(event) => setNewTeamName(event.target.value)}
-                  placeholder="e.g. Metro Spiders"
+                  placeholder="e.g. Hornsby Spiders"
                   style={{
                     padding: "10px 12px",
                     borderRadius: "8px",

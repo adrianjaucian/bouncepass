@@ -9,10 +9,11 @@ import SaveGameForm from "./SaveGameForm";
 export default function UploadDual() {
   const { currentTeam } = useTeam();
   const [uploadMode, setUploadMode] = useState("file");
-  const [homeFile, setHomeFile] = useState(null);
-  const [awayFile, setAwayFile] = useState(null);
-  const [homeCSV, setHomeCSV] = useState("");
-  const [awayCSV, setAwayCSV] = useState("");
+  const [teamIsHome, setTeamIsHome] = useState(true);
+  const [teamFile, setTeamFile] = useState(null);
+  const [opponentFile, setOpponentFile] = useState(null);
+  const [teamCSV, setTeamCSV] = useState("");
+  const [opponentCSV, setOpponentCSV] = useState("");
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -26,9 +27,19 @@ export default function UploadDual() {
     setLoading(true);
     resetResults();
     try {
-      const homeText = uploadMode === "file" ? await homeFile.text() : homeCSV;
-      const awayText = uploadMode === "file" ? (awayFile ? await awayFile.text() : "") : awayCSV;
-      setData(calculateBoxScoresFromCsv(homeText, awayText));
+      const teamText = uploadMode === "file" ? await teamFile.text() : teamCSV;
+      const opponentText = uploadMode === "file" ? (opponentFile ? await opponentFile.text() : "") : opponentCSV;
+      const teamSide = teamIsHome ? "home" : "away";
+      let calculated;
+      if (teamIsHome) {
+        calculated = calculateBoxScoresFromCsv(teamText, opponentText);
+      } else if (opponentText.trim()) {
+        calculated = calculateBoxScoresFromCsv(opponentText, teamText);
+      } else {
+        const teamOnly = calculateBoxScoresFromCsv(teamText, "");
+        calculated = { away: teamOnly.home };
+      }
+      setData({ ...calculated, team_side: teamSide });
     } catch (err) {
       setError(err.message || "Could not calculate stats from the uploaded CSV.");
     } finally {
@@ -36,8 +47,12 @@ export default function UploadDual() {
     }
   };
 
-  const canCalculateFiles = uploadMode === "file" ? Boolean(homeFile) : Boolean(homeCSV.trim());
-  const homeLabel = currentTeam?.name || "Your team";
+  const canCalculateFiles = uploadMode === "file" ? Boolean(teamFile) : Boolean(teamCSV.trim());
+  const teamLabel = currentTeam?.name || "Your team";
+  const opponentLabel = "Opponent";
+  const homeLabel = teamIsHome ? teamLabel : opponentLabel;
+  const awayLabel = teamIsHome ? opponentLabel : teamLabel;
+  const hasOpponent = Boolean(data?.home?.length && data?.away?.length);
 
   return (
     <div>
@@ -55,10 +70,24 @@ export default function UploadDual() {
           }}
         >
           <p style={{ margin: 0, color: COLORS.navy, fontSize: "14px" }}>
-            Upload or paste CSV box scores for <strong>{homeLabel}</strong>. Advanced stats are calculated here.
-            Saving stores this team&apos;s players so their metrics can be tracked over time.
+            Upload or paste CSV box scores for <strong>{teamLabel}</strong>. Advanced stats are calculated here.
+            Saving stores this team&apos;s players so their metrics can be tracked over time, whether they played home or away.
           </p>
         </div>
+
+        <label className="home-team-check">
+          <input
+            type="checkbox"
+            checked={teamIsHome}
+            onChange={(event) => {
+              setTeamIsHome(event.target.checked);
+              resetResults();
+            }}
+          />
+          <span>
+            <strong>{teamLabel}</strong> is the home team for this game
+          </span>
+        </label>
 
         <div className="mode-tabs">
           {[
@@ -80,12 +109,12 @@ export default function UploadDual() {
         {uploadMode === "file" && (
           <div className="upload-row">
             <div className="upload-box">
-              <label style={{ fontWeight: 600, color: COLORS.navy }}>{homeLabel} CSV</label>
-              <input type="file" accept=".csv" onChange={(e) => setHomeFile(e.target.files?.[0] || null)} />
+              <label style={{ fontWeight: 600, color: COLORS.navy }}>{teamLabel} CSV</label>
+              <input type="file" accept=".csv" onChange={(e) => setTeamFile(e.target.files?.[0] || null)} />
             </div>
             <div className="upload-box">
               <label style={{ fontWeight: 600, color: COLORS.navy }}>Opponent CSV (optional)</label>
-              <input type="file" accept=".csv" onChange={(e) => setAwayFile(e.target.files?.[0] || null)} />
+              <input type="file" accept=".csv" onChange={(e) => setOpponentFile(e.target.files?.[0] || null)} />
             </div>
             <button
               type="button"
@@ -101,18 +130,18 @@ export default function UploadDual() {
         {uploadMode === "paste" && (
           <div className="upload-row">
             <div className="upload-box">
-              <label style={{ fontWeight: 600, color: COLORS.navy }}>{homeLabel} CSV</label>
+              <label style={{ fontWeight: 600, color: COLORS.navy }}>{teamLabel} CSV</label>
               <textarea
-                value={homeCSV}
-                onChange={(e) => setHomeCSV(e.target.value)}
-                placeholder={`Paste ${homeLabel} box score CSV here...`}
+                value={teamCSV}
+                onChange={(e) => setTeamCSV(e.target.value)}
+                placeholder={`Paste ${teamLabel} box score CSV here...`}
               />
             </div>
             <div className="upload-box">
               <label style={{ fontWeight: 600, color: COLORS.navy }}>Opponent CSV (optional)</label>
               <textarea
-                value={awayCSV}
-                onChange={(e) => setAwayCSV(e.target.value)}
+                value={opponentCSV}
+                onChange={(e) => setOpponentCSV(e.target.value)}
                 placeholder="Paste opponent box score CSV here..."
               />
             </div>
@@ -146,11 +175,13 @@ export default function UploadDual() {
       {data && (
         <div>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", marginBottom: "16px" }}>
-            <h3 style={{ color: COLORS.navy, margin: "20px 0 10px 0" }}>Results</h3>
-            <ExportResultsButton data={data} homeLabel={homeLabel} awayLabel="Opponent" />
+            <h3 style={{ color: COLORS.navy, margin: "20px 0 10px 0" }}>
+              Results · {teamLabel} ({teamIsHome ? "Home" : "Away"})
+            </h3>
+            <ExportResultsButton data={data} homeLabel={homeLabel} awayLabel={awayLabel} />
           </div>
-          <GameResultsView data={data} homeLabel={homeLabel} awayLabel="Opponent" />
-          <SaveGameForm results={data} hasAwayTeam={Boolean(data.away)} />
+          <GameResultsView data={data} homeLabel={homeLabel} awayLabel={awayLabel} />
+          <SaveGameForm results={data} teamSide={teamIsHome ? "home" : "away"} hasOpponent={hasOpponent} />
         </div>
       )}
     </div>
