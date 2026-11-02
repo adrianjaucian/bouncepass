@@ -19,6 +19,10 @@
   --grey-border: #d1d5db;
   --nav-fg: #f7f4ea;
   --nav-muted: #c5d0d8;
+  --on-gold: #000000;
+  --on-gold-soft: #000000;
+  --on-gold-muted: #000000;
+  --gold-on-navy: #f1c40f;
   --background: #f7f4ea;
   --foreground: #000000;
 }
@@ -57,7 +61,7 @@ body {
 }
 
 .site-nav-brand {
-  color: var(--gold);
+  color: var(--gold-on-navy);
   text-decoration: none;
   font-weight: 800;
   font-size: clamp(16px, 2.2vw, 22px);
@@ -92,14 +96,14 @@ body {
 }
 
 .site-nav-link[aria-current="page"] {
-  color: var(--gold);
+  color: var(--gold-on-navy);
   font-weight: 700;
   background: rgba(var(--gold-rgb), 0.14);
 }
 
 .site-nav-team {
   background: var(--navy-mid);
-  color: var(--gold);
+  color: var(--gold-on-navy);
   border: 1px solid var(--gold);
   max-width: 180px;
 }
@@ -175,7 +179,7 @@ body {
   min-height: clamp(44px, 6vw, 56px);
   padding: clamp(10px, 1.4vw, 14px) clamp(14px, 2vw, 22px);
   background: var(--navy);
-  color: var(--gold);
+  color: var(--gold-on-navy);
   border: 1px solid var(--gold);
   border-radius: 8px;
   font-size: clamp(13px, 1.4vw, 16px);
@@ -210,7 +214,7 @@ body {
 
 .mode-tab[aria-pressed="true"] {
   background: var(--navy);
-  color: var(--gold);
+  color: var(--gold-on-navy);
   border-color: var(--gold);
 }
 
@@ -302,7 +306,7 @@ body {
 
 .window-tab[aria-pressed="true"] {
   background: var(--navy);
-  color: var(--gold);
+  color: var(--gold-on-navy);
   border-color: var(--gold);
 }
 
@@ -315,7 +319,7 @@ body {
   padding: 16px;
   text-align: center;
   cursor: pointer;
-  color: inherit;
+  color: var(--on-gold-soft);
 }
 
 .stat-card-button:hover,

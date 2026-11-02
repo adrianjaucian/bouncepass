@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 import UploadDual from "../components/UploadDual";
 import { useTeam } from "../components/TeamProvider";
-import { COLORS, DEFAULT_PRIMARY, DEFAULT_SECONDARY, pageHeader, pageInner, pageMain, pageShell, subtitleStyle, titleStyle } from "../lib/theme";
+import { COLORS, DEFAULT_PRIMARY, DEFAULT_SECONDARY, pageHeader, pageInner, pageMain, pageShell, readableOn, subtitleStyle, titleStyle } from "../lib/theme";
 
 export default function Page() {
   const { teams, currentTeam, createTeam, selectTeam, loading } = useTeam();
@@ -70,7 +70,7 @@ export default function Page() {
                         borderRadius: "8px",
                         border: `1px solid ${selected ? secondary : COLORS.greyBorder}`,
                         background: selected ? primary : COLORS.greyRow,
-                        color: selected ? secondary : COLORS.text,
+                        color: selected ? readableOn(primary, secondary) : COLORS.text,
                         fontWeight: 700,
                         cursor: "pointer",
                       }}
@@ -126,7 +126,7 @@ export default function Page() {
                   aria-label="Secondary colour"
                 />
               </label>
-              <div className="team-color-preview" aria-hidden="true" style={{ background: primaryColor, borderColor: secondaryColor, color: secondaryColor }}>
+              <div className="team-color-preview" aria-hidden="true" style={{ background: primaryColor, borderColor: secondaryColor, color: readableOn(primaryColor, secondaryColor) }}>
                 Preview
               </div>
               <button

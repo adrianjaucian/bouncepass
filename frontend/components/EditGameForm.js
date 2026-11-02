@@ -70,7 +70,7 @@ export default function EditGameForm({ game, onUpdated, onCancel }) {
             style={{
               padding: "10px 18px",
               backgroundColor: saving ? COLORS.greyAlt : COLORS.navy,
-              color: saving ? COLORS.grey : COLORS.gold,
+              color: saving ? COLORS.grey : COLORS.goldOnNavy,
               border: "none",
               borderRadius: "6px",
               cursor: saving ? "not-allowed" : "pointer",

@@ -149,7 +149,7 @@ export default function TeamDashboardPage() {
                       <thead>
                         <tr style={{ backgroundColor: COLORS.goldSoft }}>
                           {["Player", "G", "PTS", "REB", "AST", "TS%", "USG%", "ORtg", "BPM"].map((label) => (
-                            <th key={label} style={{ padding: "10px", color: COLORS.text, textAlign: label === "Player" ? "left" : "center" }}>
+                            <th key={label} style={{ padding: "10px", color: COLORS.onGoldSoft, textAlign: label === "Player" ? "left" : "center" }}>
                               {label}
                             </th>
                           ))}

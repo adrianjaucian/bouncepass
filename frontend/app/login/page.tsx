@@ -88,7 +88,7 @@ function SitePasswordForm() {
                 padding: "14px 24px",
                 backgroundColor: loading || !password ? "#e5e7eb" : "var(--navy)",
                 border: loading || !password ? "1px solid #d1d5db" : "1px solid var(--gold)",
-                color: loading || !password ? "#5d6d7e" : "var(--gold)",
+                color: loading || !password ? "#5d6d7e" : "var(--gold-on-navy)",
                 borderRadius: "8px",
                 cursor: loading || !password ? "not-allowed" : "pointer",
                 fontWeight: "bold",

@@ -39,8 +39,8 @@ function PlayerStatCard({ label, value, subtitle, kind, gameKey, games }) {
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
       >
-        <div style={{ color: COLORS.text, fontSize: "13px", marginBottom: "6px" }}>{label}</div>
-        <div style={{ color: COLORS.text, fontSize: "1.6em", fontWeight: "bold", lineHeight: 1.1 }}>{value}</div>
+        <div style={{ color: COLORS.onGoldSoft, fontSize: "13px", marginBottom: "6px" }}>{label}</div>
+        <div style={{ color: COLORS.onGoldSoft, fontSize: "1.6em", fontWeight: "bold", lineHeight: 1.1 }}>{value}</div>
         {subtitle && <div style={{ color: COLORS.muted, fontSize: "12px", marginTop: "4px" }}>{subtitle}</div>}
         <div style={{ color: COLORS.muted, fontSize: "11px", marginTop: "8px", fontWeight: 700 }}>
           {open ? "Hide trend" : "Show trend"}
@@ -75,7 +75,7 @@ function PlayerStatCard({ label, value, subtitle, kind, gameKey, games }) {
 
 const tableHeaderStyle = {
   padding: "10px",
-  color: COLORS.text,
+  color: COLORS.onGoldSoft,
   fontWeight: "bold",
 };
 

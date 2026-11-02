@@ -10,6 +10,10 @@ export const COLORS = {
   goldSoft: "var(--gold-soft)",
   goldMuted: "var(--gold-muted)",
   goldInk: "var(--gold-ink)",
+  onGold: "var(--on-gold)",
+  onGoldSoft: "var(--on-gold-soft)",
+  onGoldMuted: "var(--on-gold-muted)",
+  goldOnNavy: "var(--gold-on-navy)",
   cream: "var(--cream)",
   card: "var(--card)",
   text: "var(--text)",
@@ -71,26 +75,51 @@ function luminance(hex) {
   return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b);
 }
 
-function onColor(background) {
-  return luminance(background) > 0.45 ? "#1b2838" : "#f7f4ea";
+function contrastRatio(left, right) {
+  const light = Math.max(luminance(left), luminance(right));
+  const dark = Math.min(luminance(left), luminance(right));
+  return (light + 0.05) / (dark + 0.05);
+}
+
+export function contrastText(background) {
+  return luminance(normalizeHex(background)) > 0.45 ? BODY_TEXT : "#ffffff";
+}
+
+export function readableOn(background, preferred) {
+  const bg = normalizeHex(background);
+  const fg = parseHex(preferred);
+  if (fg && contrastRatio(fg, bg) >= 3) return fg;
+  return contrastText(bg);
+}
+
+function lightTint(color, amount, fallbackAmount) {
+  const mixed = mixHex(color, "#ffffff", amount);
+  return luminance(mixed) >= 0.5 ? mixed : mixHex(color, "#ffffff", fallbackAmount);
 }
 
 export function buildTheme(primary, secondary) {
   const navy = normalizeHex(primary, DEFAULT_PRIMARY);
   const gold = normalizeHex(secondary, DEFAULT_SECONDARY);
   const rgb = hexToRgb(gold);
+  const goldSoft = lightTint(gold, 0.72, 0.84);
+  const goldMuted = lightTint(gold, 0.5, 0.72);
+  const navFg = contrastText(navy);
   return {
     navy,
     navyMid: mixHex(navy, "#ffffff", 0.1),
     navySoft: mixHex(navy, "#ffffff", 0.18),
     gold,
-    goldSoft: mixHex(gold, "#ffffff", 0.72),
-    goldMuted: mixHex(gold, "#ffffff", 0.5),
+    goldSoft,
+    goldMuted,
     goldInk: mixHex(gold, "#000000", 0.55),
     cream: mixHex("#f7f4ea", navy, 0.08),
     goldRgb: `${rgb.r}, ${rgb.g}, ${rgb.b}`,
-    navFg: onColor(navy),
-    navMuted: mixHex(onColor(navy), navy, 0.28),
+    navFg,
+    navMuted: mixHex(navFg, navy, 0.28),
+    onGold: contrastText(gold),
+    onGoldSoft: contrastText(goldSoft),
+    onGoldMuted: contrastText(goldMuted),
+    goldOnNavy: readableOn(navy, gold),
   };
 }
 
@@ -113,6 +142,10 @@ export function applyTeamTheme(primary, secondary) {
     "--foreground": BODY_TEXT,
     "--nav-fg": theme.navFg,
     "--nav-muted": theme.navMuted,
+    "--on-gold": theme.onGold,
+    "--on-gold-soft": theme.onGoldSoft,
+    "--on-gold-muted": theme.onGoldMuted,
+    "--gold-on-navy": theme.goldOnNavy,
   };
   Object.entries(next).forEach(([name, value]) => root.style.setProperty(name, value));
 }
@@ -164,7 +197,7 @@ export const subtitleStyle = {
 
 export const primaryButton = (enabled) => ({
   backgroundColor: enabled ? COLORS.navy : COLORS.greyAlt,
-  color: enabled ? COLORS.gold : COLORS.grey,
+  color: enabled ? COLORS.goldOnNavy : COLORS.grey,
   border: enabled ? `1px solid ${COLORS.gold}` : `1px solid ${COLORS.greyBorder}`,
   borderRadius: "8px",
   fontWeight: 700,

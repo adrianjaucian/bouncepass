@@ -120,7 +120,7 @@ function ResultsTable({ rows }) {
                   textAlign: "center",
                   fontWeight: "bold",
                   backgroundColor: COLORS.gold,
-                  color: COLORS.text,
+                  color: COLORS.onGold,
                 }}
               >
                 {col.label}
@@ -133,6 +133,7 @@ function ResultsTable({ rows }) {
             const playerName = getPlayerNameFromRow(player, i);
             const regularBg = i % 2 === 0 ? COLORS.greyRow : COLORS.greyAlt;
             const advancedBg = i % 2 === 0 ? COLORS.goldSoft : COLORS.goldMuted;
+            const advancedFg = i % 2 === 0 ? COLORS.onGoldSoft : COLORS.onGoldMuted;
             return (
               <tr key={i}>
                 <td
@@ -167,7 +168,7 @@ function ResultsTable({ rows }) {
                     style={{
                       padding: "8px 4px",
                       textAlign: "center",
-                      color: COLORS.text,
+                      color: advancedFg,
                       backgroundColor: advancedBg,
                       fontWeight: 600,
                     }}

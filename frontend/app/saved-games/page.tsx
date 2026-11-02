@@ -176,7 +176,7 @@ export default function SavedGamesPage() {
                           style={{
                             padding: "10px 16px",
                             backgroundColor: COLORS.navy,
-                            color: COLORS.gold,
+                            color: COLORS.goldOnNavy,
                             borderRadius: "6px",
                             textDecoration: "none",
                             fontWeight: "bold",
@@ -215,7 +215,7 @@ export default function SavedGamesPage() {
                     marginTop: "20px",
                     padding: "12px 20px",
                     backgroundColor: loadingMore ? COLORS.greyAlt : COLORS.navy,
-                    color: loadingMore ? COLORS.grey : COLORS.gold,
+                    color: loadingMore ? COLORS.grey : COLORS.goldOnNavy,
                     border: "none",
                     borderRadius: "6px",
                     fontWeight: "bold",
